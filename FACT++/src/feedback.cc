@@ -93,7 +93,7 @@ private:
         )
         {
             Dim::SendCommandNB("BIAS_CONTROL/REQUEST_STATUS");
-            Info("Starting calibration step "+to_string(fCalibStep));
+            Info("Starting calibration step " + to_string(fCalibStep));
         }
 
         if (
@@ -130,8 +130,8 @@ private:
                 evt.Ptr<float>(),
                 evt.Ptr<float>() + BIAS::kNumChannels);
             fBiasR9.assign(
-                evt.Ptr<float>() + 2*BIAS::kNumChannels,
-                evt.Ptr<float>() + 3*BIAS::kNumChannels);
+                evt.Ptr<float>() + 2 * BIAS::kNumChannels,
+                evt.Ptr<float>() + 3 * BIAS::kNumChannels);
 
             for (int i=0; i<Feedback::NumBiasChannels; i++)
                 fVoltGapd[i] += Feedback::DefaultOverVoltage;
@@ -278,7 +278,7 @@ private:
             // Ramp all channels to the calibration setting except the one
             // with a shortcut
             vector<uint16_t> vec(BIAS::kNumChannels, uint16_t(256+512*fCalibStep));
-            vec[272] = 0;
+            vec[Feedback::ABrokenBoard] = 0;
             Dim::SendCommandNB("BIAS_CONTROL/SET_ALL_CHANNELS_DAC", vec);
 
             //Dim::SendCommandNB("BIAS_CONTROL/SET_GLOBAL_DAC", uint16_t(256+512*fCalibStep));
@@ -351,7 +351,7 @@ private:
         }
 
         vector<float> v;
-        v.reserve(BIAS::kNumChannels*2);
+        v.reserve(BIAS::kNumChannels * 2);
         v.insert(v.end(), fCalibDeltaI.begin(), fCalibDeltaI.end());
         v.insert(v.end(), fCalibR8.begin(),     fCalibR8.end());
 
@@ -598,12 +598,11 @@ private:
                 continue;
 
             // Check if this is a blocked channel
-            // 272 is the one with the shortcut
             const bool blocked =
                 (fMoonMode>0 && std::find(inner0.begin(), inner0.end(), i)!=inner0.end()) ||
                 (fMoonMode>1 && std::find(inner1.begin(), inner1.end(), i)!=inner1.end()) ||
                 (fMoonMode>2 && std::find(inner2.begin(), inner2.end(), i)!=inner2.end()) ||
-                i==272;
+                i==Feedback::ABrokenBoard;
 
             // Number of G-APDs in this patch
             const int N = hv.count();
@@ -839,7 +838,7 @@ private:
                 vec[263] = vec[262]-fVoltGapd[262]+fVoltGapd[263];
 
                 // Do not ramp the channel with a shortcut
-                vec[272] = 0;
+                vec[Feedback::ABrokenBoard] = 0;
 
                 DimClient::sendCommandNB("BIAS_CONTROL/SET_ALL_CHANNELS_VOLTAGE",
                                          vec.data(), BIAS::kNumChannels*sizeof(float));
@@ -989,7 +988,7 @@ private:
         // Ramp all channels to the calibration setting except the one
         // with a shortcut
         vector<uint16_t> vec(BIAS::kNumChannels, uint16_t(256+512*fCalibStep));
-        vec[272] = 0;
+        vec[Feedback::ABrokenBoard] = 0;
         Dim::SendCommandNB("BIAS_CONTROL/SET_ALL_CHANNELS_DAC", vec);
 
         return Feedback::State::kCalibrating;
