@@ -51,7 +51,7 @@ private:
 
     vector<float>    fVoltGapd;     // Nominal breakdown voltage + 1.1V
     vector<float>    fBiasVolt;     // Output voltage as reported by bias crate (voltage between R10 and R8)
-    vector<float>    fBiasR9;       // 
+    vector<float>    fBiasR9;       //
     vector<uint16_t> fBiasDac;      // Dac value corresponding to the voltage setting
 
     vector<float>    fCalibration;
@@ -152,9 +152,6 @@ private:
             fTimeTemp = Time(Time::none);
             return GetCurrentState();
         }
-
-        //fTempOffset = (avgt-25)*0.0561765; // [V] From Hamamatsu datasheet
-        //fTempOffset = (avgt-25)*0.05678; // [V] From Hamamatsu datasheet plus our own measurement (gein vs. temperature)
 
         const float *ptr = evt.Ptr<float>(4);
 
@@ -822,8 +819,6 @@ private:
                 // Do not ramp the channel with a shortcut
                 vec[272] = 0;
 
-//            if (fDimBias.state()!=BIAS::State::kRamping)
-//            {
                 DimClient::sendCommandNB("BIAS_CONTROL/SET_ALL_CHANNELS_VOLTAGE",
                                          vec.data(), BIAS::kNumChannels*sizeof(float));
 
@@ -858,10 +853,6 @@ private:
                 Info(msg);
             }
         }
-
-        //if (GetCurrentState()>=Feedback::State::kOnStandby &&
-        //    fDimBias.state()==BIAS::State::kRamping)
-        //    return newstate;
 
         // --------------------------------- Console out --------------------------------------
 
@@ -915,41 +906,6 @@ private:
 
     int PrintCalibration()
     {
-        /*
-        if (fCalibration.size()==0)
-        {
-            Out() << "No calibration performed so far." << endl;
-            return GetCurrentState();
-        }
-
-        const float *avg = fCalibration.data();
-        const float *rms = fCalibration.data()+BIAS::kNumChannels;
-        const float *res = fCalibration.data()+BIAS::kNumChannels*2;
-
-        Out() << "Average current at " << fCalibrationOffset << "V below G-APD operation voltage:\n";
-
-        for (int k=0; k<13; k++)
-            for (int j=0; j<8; j++)
-            {
-                Out() << setw(2) << k << "|" << setw(2) << j*4 << "|";
-                for (int i=0; i<4; i++)
-                    Out() << Tools::Form(" %6.1f+-%4.1f", avg[k*32+j*4+i], rms[k*32+j*4+i]);
-                Out() << '\n';
-            }
-        Out() << '\n';
-
-        Out() << "Measured calibration resistor:\n";
-        for (int k=0; k<13; k++)
-            for (int j=0; j<4; j++)
-            {
-                Out() << setw(2) << k << "|" << setw(2) << j*8 << "|";
-                for (int i=0; i<8; i++)
-                    Out() << Tools::Form(" %5.0f", res[k*32+j*8+i]);
-                Out() << '\n';
-            }
-
-        Out() << flush;
-        */
         return GetCurrentState();
     }
 
@@ -1014,8 +970,6 @@ private:
         vec[272] = 0;
         Dim::SendCommandNB("BIAS_CONTROL/SET_ALL_CHANNELS_DAC", vec);
 
-        //Dim::SendCommandNB("BIAS_CONTROL/SET_GLOBAL_DAC", uint16_t(256+512*fCalibStep));
-
         return Feedback::State::kCalibrating;
     }
 
@@ -1023,13 +977,6 @@ private:
     {
         if (!CheckEventSize(evt.GetSize(), "Start", 4))
             return kSM_FatalError;
-
-        /*
-        if (fDimBias.state()==BIAS::State::kRamping)
-        {
-            Warn("Feedback can not be started when biasctrl is in state Ramping.");
-            return GetCurrentState();
-        }*/
 
         fUserOffset = evt.GetFloat()-1.1;
         fVoltageReduction = 0;
@@ -1149,11 +1096,9 @@ private:
         const bool bias = fDimBias.state() >= BIAS::State::kConnecting;
         const bool fsc  = fDimFSC.state()  >= FSC::State::kConnected;
 
-        // All subsystems are not connected
         if (!bias && !fsc)
             return Feedback::State::kDisconnected;
 
-        // Not all subsystems are yet connected
         if (!bias || !fsc)
             return Feedback::State::kConnecting;
 
@@ -1164,8 +1109,6 @@ private:
             return GetCurrentState();
         if (GetCurrentState()==Feedback::State::kCalibrating)
             return GetCurrentState();
-
-        // kCalibrated, kWaitingForData, kInProgress
 
         if (fDimBias.state()==BIAS::State::kVoltageOn || (fDimBias.state()==BIAS::State::kVoltageOff && GetCurrentState()==Feedback::State::kWaitingForData))
         {
@@ -1182,11 +1125,9 @@ private:
 
 public:
     StateMachineFeedback(ostream &out=cout) : StateMachineDim(out, "FEEDBACK"),
-        fIsVerbose(false), 
-        //---
+        fIsVerbose(false),
         fDimFSC("FSC_CONTROL"),
         fDimBias("BIAS_CONTROL"),
-        //---
         fDimCalibration("FEEDBACK/CALIBRATION", "F:416;F:416;F:416;F:416",
                         "Current offsets"
                         "|Avg[uA]:Average offset at dac=256+5*512"
@@ -1242,7 +1183,6 @@ public:
         Subscribe("FSC_CONTROL/BIAS_TEMP")
             (bind(&StateMachineFeedback::HandleCameraTemp,  this, placeholders::_1));
 
-        // State names
         AddStateName(Feedback::State::kDimNetworkNA, "DimNetworkNotAvailable",
                      "The Dim DNS is not reachable.");
 
@@ -1270,12 +1210,6 @@ public:
         AddStateName(Feedback::State::kCritical, "Critical",
                      "Current control in progress but critical current limit exceeded.");
 
-
-        /*
-        AddEvent("SET_CURRENT_REQUEST_INTERVAL")
-            (bind(&StateMachineFeedback::SetCurrentRequestInterval, this, placeholders::_1))
-            ("|interval[ms]:Interval between two current requests in modes which need that.");
-        */
 
         AddEvent("CALIBRATE", Feedback::State::kConnected, Feedback::State::kCalibrated)
             (bind(&StateMachineFeedback::Calibrate, this))
@@ -1317,7 +1251,6 @@ public:
             (bind(&StateMachineFeedback::PrintCalibration, this))
             ("");
 
-        // Verbosity commands
         AddEvent("SET_VERBOSE", "B:1")
             (bind(&StateMachineFeedback::SetVerbosity, this, placeholders::_1))
             ("set verbosity state"
@@ -1346,8 +1279,6 @@ public:
     }
 };
 
-// ------------------------------------------------------------------------
-
 #include "Main.h"
 
 template<class T>
@@ -1372,15 +1303,6 @@ void SetupConfiguration(Configuration &conf)
     conf.AddOptions(control);
 }
 
-/*
- Extract usage clause(s) [if any] for SYNOPSIS.
- Translators: "Usage" and "or" here are patterns (regular expressions) which
- are used to match the usage synopsis in program output.  An example from cp
- (GNU coreutils) which contains both strings:
-  Usage: cp [OPTION]... [-T] SOURCE DEST
-    or:  cp [OPTION]... SOURCE... DIRECTORY
-    or:  cp [OPTION]... -t DIRECTORY SOURCE...
- */
 void PrintUsage()
 {
     cout <<
@@ -1399,23 +1321,6 @@ void PrintUsage()
 void PrintHelp()
 {
     Main::PrintHelp<StateMachineFeedback>();
-
-    /* Additional help text which is printed after the configuration
-     options goes here */
-
-    /*
-     cout << "bla bla bla" << endl << endl;
-     cout << endl;
-     cout << "Environment:" << endl;
-     cout << "environment" << endl;
-     cout << endl;
-     cout << "Examples:" << endl;
-     cout << "test exam" << endl;
-     cout << endl;
-     cout << "Files:" << endl;
-     cout << "files" << endl;
-     cout << endl;
-     */
 }
 
 int main(int argc, const char* argv[])
@@ -1428,37 +1333,13 @@ int main(int argc, const char* argv[])
     if (!conf.DoParse(argc, argv, PrintHelp))
         return 127;
 
-    //try
-    {
-        // No console access at all
-        if (!conf.Has("console"))
-        {
-//            if (conf.Get<bool>("no-dim"))
-//                return RunShell<LocalStream, StateMachine, ConnectionFSC>(conf);
-//            else
-                return RunShell<LocalStream>(conf);
-        }
-        // Cosole access w/ and w/o Dim
-/*        if (conf.Get<bool>("no-dim"))
-        {
-            if (conf.Get<int>("console")==0)
-                return RunShell<LocalShell, StateMachine, ConnectionFSC>(conf);
-            else
-                return RunShell<LocalConsole, StateMachine, ConnectionFSC>(conf);
-        }
-        else
-*/        {
-            if (conf.Get<int>("console")==0)
-                return RunShell<LocalShell>(conf);
-            else
-                return RunShell<LocalConsole>(conf);
-        }
-    }
-    /*catch (std::exception& e)
-    {
-        cerr << "Exception: " << e.what() << endl;
-        return -1;
-    }*/
+    if (!conf.Has("console"))
+        return RunShell<LocalStream>(conf);
+
+    if (conf.Get<int>("console")==0)
+        return RunShell<LocalShell>(conf);
+    else
+        return RunShell<LocalConsole>(conf);
 
     return 0;
 }
