@@ -133,21 +133,29 @@ private:
 
     int HandleBiasVoltage(const EventImp &evt)
     {
-        if (evt.GetSize()>=BIAS::kNumChannels*sizeof(float))
-            fBiasVolt.assign(evt.Ptr<float>(), evt.Ptr<float>()+BIAS::kNumChannels);
+        if (evt.GetSize() >= BIAS::kNumChannels * sizeof(float))
+            fBiasVolt.assign(
+                evt.Ptr<float>(),
+                evt.Ptr<float>() + BIAS::kNumChannels);
         return GetCurrentState();
     }
 
     int HandleBiasDac(const EventImp &evt)
     {
-        if (evt.GetSize()>=BIAS::kNumChannels*sizeof(uint16_t))
-            fBiasDac.assign(evt.Ptr<uint16_t>(), evt.Ptr<uint16_t>()+BIAS::kNumChannels);
+        if (evt.GetSize() >= BIAS::kNumChannels * sizeof(uint16_t))
+            fBiasDac.assign(
+                evt.Ptr<uint16_t>(),
+                evt.Ptr<uint16_t>() + BIAS::kNumChannels);
         return GetCurrentState();
     }
 
     int HandleCameraTemp(const EventImp &evt)
     {
-        if (!CheckEventSize(evt.GetSize(), "HandleCameraTemp", 323*sizeof(float)))
+        if (!CheckEventSize(
+            evt.GetSize(),
+            "HandleCameraTemp",
+            323 * sizeof(float))
+        )
         {
             fTimeTemp = Time(Time::none);
             return GetCurrentState();
