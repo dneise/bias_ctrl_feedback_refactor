@@ -213,19 +213,21 @@ private:
         return make_pair(avg, rms);
     }
 
+    uint16_t get_calibration_dac_value(){
+        return 256 + 512 * fCalibStep;
+    }
+
     int HandleCalibration(const EventImp &evt)
     {
         if (fDimBias.state()!=BIAS::State::kVoltageOn)
             return GetCurrentState();
-
-        const uint16_t dac = 256+512*fCalibStep; // Command value
 
         // Only the channels which are no spare channels are ramped
         // Due to the shortcut, only 319 channels are ramped, so only
         // 320 and not 319 are expected to have the correct day setting
         if (std::count(
             fBiasDac.begin(),
-            fBiasDac.end(), dac) != Feedback::NumBiasChannels - 1
+            fBiasDac.end(), get_calibration_dac_value()) != Feedback::NumBiasChannels - 1
         )
             return GetCurrentState();
 
@@ -245,18 +247,8 @@ private:
 
         // ------------------------- Update calibration data --------------------
 
-        struct cal_data
-        {
-            uint32_t dac;
-            float    U[BIAS::kNumChannels];
-            float    Iavg[BIAS::kNumChannels];
-            float    Irms[BIAS::kNumChannels];
-
-            cal_data() { memset(this, 0, sizeof(cal_data)); }
-        } __attribute__((__packed__));
-
-        cal_data cal;
-        cal.dac = dac;
+        Feedback::CalibData_t cal;
+        cal.dac = get_calibration_dac_value();
         memcpy(cal.U,    fBiasVolt.data(), BIAS::kNumChannels*sizeof(float));
         memcpy(cal.Iavg, avg.data(),       BIAS::kNumChannels*sizeof(float));
         memcpy(cal.Irms, rms.data(),       BIAS::kNumChannels*sizeof(float));
@@ -274,11 +266,9 @@ private:
 
             // Ramp all channels to the calibration setting except the one
             // with a shortcut
-            vector<uint16_t> vec(BIAS::kNumChannels, uint16_t(256+512*fCalibStep));
+            vector<uint16_t> vec(BIAS::kNumChannels, get_calibration_dac_value());
             vec[Feedback::ABrokenBoard] = 0;
             Dim::SendCommandNB("BIAS_CONTROL/SET_ALL_CHANNELS_DAC", vec);
-
-            //Dim::SendCommandNB("BIAS_CONTROL/SET_GLOBAL_DAC", uint16_t(256+512*fCalibStep));
 
             return GetCurrentState();
         }
@@ -286,7 +276,6 @@ private:
         fCalibDeltaI.resize(BIAS::kNumChannels);
         fCalibR8.resize(BIAS::kNumChannels);
 
-        // Linear regression of the values at 256+512*N for N={ 3, 4, 5 }
         for (int i=0; i<BIAS::kNumChannels; i++)
         {
             // x: Idac
@@ -319,7 +308,7 @@ private:
             const double t = (y - m*x) / len;
 
             fCalibDeltaI[i] = t;     // [A]
-            fCalibR8[i]     = 100/m; // [Ohm]
+            fCalibR8[i]     = m; // [Ohm]
         }
 
         vector<float> v;
@@ -443,6 +432,45 @@ private:
 
         // keep voltage
         return standby ? Feedback::State::kOnStandby : Feedback::State::kInProgress;
+    }
+
+
+    double serial_resistor(int bias_patch_id){
+            int i = bias_patch_id
+            // Serial resistors (one 1kOhm at the output of the bias crate, one 1kOhm in the camera)
+            const double R4 = 2000;
+
+            // Serial resistor of the individual G-APDs plus 50 Ohm termination
+            double R5 = 3900./N + 50;
+
+            // This is assuming that the broken pixels have a 390 Ohm instead of 3900 Ohm serial resistor
+            if (i==66 || i==193)               // Pixel 830(66) / Pixel 583(191)
+                R5 = 1./((N-1)/3900.+1/1000.);
+            if (i==191)                        // Pixel 1399(193)
+                R5 = 1./((N-1)/3900.+1/390.);
+            if (i==17 || i==206)               // dead pixel 923(80) / dead pixel 424(927)
+                R5 = 3900./(N-1);              // cannot identify third dead pixel in light-pulser data
+
+            // Total resistance of branch with diodes (R4+R5)
+            // Assuming that the voltage output of the OpAMP is linear
+            // with the DAC setting and not the voltage at R9
+            const double R = R4 + R5;
+
+            // For the patches with a broken resistor - ignoring the G-APD resistance -
+            // we get:
+            //
+            // I[R=3900] =  Iout *      1/(10+(N-1))  = Iout        /(N+9)
+            // I[R= 390] =  Iout * (1 - 1/(10+(N-1))) = Iout * (N+8)/(N+9)
+            //
+            // I[R=390] / I[R=3900] = N+8
+            //
+            // Udrp = Iout*3900/(N+9) + Iout*1000 + Iout*1000 = Iout * R
+
+            // Voltage drop in R4/R5 branch (for the G-APDs with correct resistor)
+            // The voltage drop should not be <0, otherwise an unphysical value
+            // would be amplified when Uset is calculated.
+
+            return R
     }
 
     int HandleBiasCurrent(const EventImp &evt)
@@ -574,7 +602,6 @@ private:
             const double adc = Imes[i]; // [A]
 
             // Current through ~100 Ohm measurement resistor
-            //const double I8 = (adc-fCalibDeltaI[i])*fCalibR8[i]/100;
             const double I8 = adc-fCalibDeltaI[i];
 
             // Current through calibration resistors (R9)
@@ -584,7 +611,7 @@ private:
 
             // Current in R4/R5 branch
             //const double Iout = I8 - I9;//I8>I9 ? I8 - I9 : 0;
-            const double Iout = I8 - I9*100/fCalibR8[i];//I8>I9 ? I8 - I9 : 0;
+            const double Iout = I8 - I9 * fCalibR8[i];//I8>I9 ? I8 - I9 : 0;
 
             // Applied voltage at calibration resistors, according to biasctrl
             const double U9 = fBiasVolt[i];
@@ -593,24 +620,7 @@ private:
             // change = --- = ---------------------- =  --------  = 0.8
             //          old    I8*fCalibR8/100 - I9     fCalibR8
 
-            // Serial resistors (one 1kOhm at the output of the bias crate, one 1kOhm in the camera)
-            const double R4 = 2000;
-
-            // Serial resistor of the individual G-APDs plus 50 Ohm termination
-            double R5 = 3900./N + 50;
-
-            // This is assuming that the broken pixels have a 390 Ohm instead of 3900 Ohm serial resistor
-            if (i==66 || i==193)               // Pixel 830(66) / Pixel 583(191)
-                R5 = 1./((N-1)/3900.+1/1000.);
-            if (i==191)                        // Pixel 1399(193)
-                R5 = 1./((N-1)/3900.+1/390.);
-            if (i==17 || i==206)               // dead pixel 923(80) / dead pixel 424(927)
-                R5 = 3900./(N-1);              // cannot identify third dead pixel in light-pulser data
-
-            // Total resistance of branch with diodes (R4+R5)
-            // Assuming that the voltage output of the OpAMP is linear
-            // with the DAC setting and not the voltage at R9
-            const double R = R4 + R5;
+            const double R = serial_resistor(i);
 
             // For the patches with a broken resistor - ignoring the G-APD resistance -
             // we get:
@@ -924,7 +934,7 @@ private:
 
         // Ramp all channels to the calibration setting except the one
         // with a shortcut
-        vector<uint16_t> vec(BIAS::kNumChannels, uint16_t(256+512*fCalibStep));
+        vector<uint16_t> vec(BIAS::kNumChannels, get_calibration_dac_value());
         vec[Feedback::ABrokenBoard] = 0;
         Dim::SendCommandNB("BIAS_CONTROL/SET_ALL_CHANNELS_DAC", vec);
 
