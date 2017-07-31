@@ -1,0 +1,3 @@
+Interrupt Controls
+|Voltage off||irqOff
+|Shutdown||irqShutdown
