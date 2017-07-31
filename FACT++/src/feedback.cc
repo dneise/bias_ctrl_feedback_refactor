@@ -646,14 +646,10 @@ private:
             if (i==17 || i==206)               // dead pixel 923(80) / dead pixel 424(927)
                 R5 = 3900./(N-1);              // cannot identify third dead pixel in light-pulser data
 
-            // The measurement resistor
-            const double R8 = 0;
-
             // Total resistance of branch with diodes (R4+R5)
             // Assuming that the voltage output of the OpAMP is linear
-            // with the DAC setting and not the voltage at R9, the
-            // additional voltage drop at R8 must be taken into account
-            const double R = R4 + R5 + R8;
+            // with the DAC setting and not the voltage at R9
+            const double R = R4 + R5;
 
             // For the patches with a broken resistor - ignoring the G-APD resistance -
             // we get:
