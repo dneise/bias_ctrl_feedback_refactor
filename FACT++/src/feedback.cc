@@ -835,11 +835,6 @@ private:
         return GetCurrentState();
     }
 
-    int PrintCalibration()
-    {
-        return GetCurrentState();
-    }
-
     int SetVerbosity(const EventImp &evt)
     {
         if (!CheckEventSize(evt.GetSize(), "SetVerbosity", 1))
@@ -1171,9 +1166,6 @@ public:
 
         AddEvent("PRINT")
             (bind(&StateMachineFeedback::Print, this))
-            ("");
-        AddEvent("PRINT_CALIBRATION")
-            (bind(&StateMachineFeedback::PrintCalibration, this))
             ("");
 
         AddEvent("SET_VERBOSE", "B:1")
