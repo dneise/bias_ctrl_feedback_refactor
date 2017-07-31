@@ -53,7 +53,14 @@ namespace Feedback
         float Unom;
         float dUtemp;
 
-        DimCurrents_t() { memset(this, 0, sizeof(dim_data)); }
+        DimCurrents_t()
+        {
+            memset(
+                this,
+                0,
+                sizeof(dim_data)
+            );
+        }
     } __attribute__((__packed__));
 
 }
