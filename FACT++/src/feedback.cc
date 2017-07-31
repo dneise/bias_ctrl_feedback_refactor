@@ -200,14 +200,12 @@ private:
         if (fCursorCur<n)
             return make_pair(vector<float>(), vector<float>());
 
-        const double conv = Feedback::c5;
-
         vector<float> rms(BIAS::kNumChannels);
         vector<float> avg(BIAS::kNumChannels);
         for (int i=0; i<BIAS::kNumChannels; i++)
         {
-            avg[i]  = double(fCurrentsAvg[i])/fCursorCur * conv;
-            rms[i]  = double(fCurrentsRms[i])/fCursorCur * conv * conv;
+            avg[i]  = double(fCurrentsAvg[i])/fCursorCur * Feedback::c5;
+            rms[i]  = double(fCurrentsRms[i])/fCursorCur * Feedback::c5 * Feedback::c5;
             rms[i] -= avg[i]*avg[i];
             rms[i]  = rms[i]<0 ? 0 : sqrt(rms[i]);
         }
