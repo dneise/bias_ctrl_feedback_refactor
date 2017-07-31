@@ -172,17 +172,18 @@ private:
             return GetCurrentState();
         }
 
-        const float *ptr = evt.Ptr<float>(sizeof(float));
 
         fTimeTemp = evt.GetTime();
-        fTemp     = evt.Get<float>(321*sizeof(float));
+        fTemp     = evt.Get<float>(321 * sizeof(float));
 
-        fTempOffsetAvg = (fTemp-25)*fTempCoefficient;
-        fTempOffsetRms =  evt.Get<float>(322*sizeof(float))*fTempCoefficient;
+        fTempOffsetAvg = (fTemp - Feedback::DefaultOperationTemperature) * fTempCoefficient;
+        fTempOffsetRms =  evt.Get<float>(322 * sizeof(float)) * fTempCoefficient;
 
         fTempOffset.resize(Feedback::NumBiasChannels);
+
+        const float *ptr = evt.Ptr<float>(sizeof(float));
         for (int i=0; i<Feedback::NumBiasChannels; i++)
-            fTempOffset[i] = (ptr[i]-25)*fTempCoefficient;
+            fTempOffset[i] = (ptr[i] - Feedback::DefaultOperationTemperature) * fTempCoefficient;
 
         return GetCurrentState();
     }

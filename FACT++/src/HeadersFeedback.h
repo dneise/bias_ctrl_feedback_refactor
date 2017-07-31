@@ -16,6 +16,7 @@ namespace Feedback
     const double c5  =  5e-3 / 4096;
     const double c10 = 10e-3 / 4096;
 
+    const float DefaultOperationTemperature = 25.0;
 
     namespace State
     {
@@ -35,8 +36,6 @@ namespace Feedback
             kWarning,
             kCritical,
             kOnStandby,
-
-
         };
     }
 
