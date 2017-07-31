@@ -43,8 +43,8 @@ private:
     DimDescribedService fDimCurrents;
     DimDescribedService fDimOffsets;
 
-    vector<float>    fCalibCurrentMes[6]; // Measured calibration current at six different levels
-    vector<float>    fCalibVoltage[6];    // Corresponding voltage as reported by biasctrl
+    vector<float>    fCalibCurrentMes[Feedback::NumberSix]; // Measured calibration current at six different levels
+    vector<float>    fCalibVoltage[Feedback::NumberSix];    // Corresponding voltage as reported by biasctrl
 
     vector<int64_t>  fCurrentsAvg;
     vector<int64_t>  fCurrentsRms;
@@ -87,13 +87,19 @@ private:
 
     int HandleBiasStateChange()
     {
-        if (fDimBias.state()==BIAS::State::kVoltageOn && GetCurrentState()==Feedback::State::kCalibrating)
+        if (
+            fDimBias.state()==BIAS::State::kVoltageOn &&
+            GetCurrentState()==Feedback::State::kCalibrating
+        )
         {
             Dim::SendCommandNB("BIAS_CONTROL/REQUEST_STATUS");
             Info("Starting calibration step "+to_string(fCalibStep));
         }
 
-        if (fDimBias.state()==BIAS::State::kVoltageOff && GetCurrentState()>=Feedback::State::kInProgress)
+        if (
+            fDimBias.state()==BIAS::State::kVoltageOff &&
+            GetCurrentState()>=Feedback::State::kInProgress
+        )
             return Feedback::State::kCalibrated;
 
         return GetCurrentState();
@@ -110,7 +116,8 @@ private:
             return false;
 
         ostringstream msg;
-        msg << name << " - Received event has " << has << " bytes, but expected " << size << ".";
+        msg << name << " - Received event has ";
+        msg << has << " bytes, but expected " << size << ".";
         Fatal(msg);
         return false;
     }
@@ -119,8 +126,12 @@ private:
     {
         if (evt.GetSize()>=BIAS::kNumChannels*sizeof(float))
         {
-            fVoltGapd.assign(evt.Ptr<float>(), evt.Ptr<float>()+BIAS::kNumChannels);
-            fBiasR9.assign(evt.Ptr<float>()+2*BIAS::kNumChannels, evt.Ptr<float>()+3*BIAS::kNumChannels);
+            fVoltGapd.assign(
+                evt.Ptr<float>(),
+                evt.Ptr<float>() + BIAS::kNumChannels);
+            fBiasR9.assign(
+                evt.Ptr<float>() + 2*BIAS::kNumChannels,
+                evt.Ptr<float>() + 3*BIAS::kNumChannels);
 
             for (int i=0; i<Feedback::NumBiasChannels; i++)
                 fVoltGapd[i] += 1.1;
@@ -215,7 +226,10 @@ private:
         // Only the channels which are no spare channels are ramped
         // Due to the shortcut, only 319 channels are ramped, so only
         // 320 and not 319 are expected to have the correct day setting
-        if (std::count(fBiasDac.begin(), fBiasDac.end(), dac)!=Feedback::NumBiasChannels - 1)
+        if (std::count(
+            fBiasDac.begin(),
+            fBiasDac.end(), dac) != Feedback::NumBiasChannels - 1
+        )
             return GetCurrentState();
 
         const auto rc = AverageCurrents(evt.Ptr<int16_t>(), fNumCalibRequests);
@@ -255,7 +269,7 @@ private:
 
         // -------------------- Start next calibration steo ---------------------
 
-        if (++fCalibStep<6)
+        if (++fCalibStep < Feedback::NumberSix)
         {
             fCursorCur  = -fNumCalibIgnore;
             fCurrentsAvg.assign(BIAS::kNumChannels, 0);
