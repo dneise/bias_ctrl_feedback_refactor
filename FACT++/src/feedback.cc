@@ -172,13 +172,13 @@ private:
             return GetCurrentState();
         }
 
-        const float *ptr = evt.Ptr<float>(4);
+        const float *ptr = evt.Ptr<float>(sizeof(float));
 
         fTimeTemp = evt.GetTime();
-        fTemp     = evt.Get<float>(321*4);
+        fTemp     = evt.Get<float>(321*sizeof(float));
 
         fTempOffsetAvg = (fTemp-25)*fTempCoefficient;
-        fTempOffsetRms =  evt.Get<float>(322*4)*fTempCoefficient;
+        fTempOffsetRms =  evt.Get<float>(322*sizeof(float))*fTempCoefficient;
 
         fTempOffset.resize(Feedback::NumBiasChannels);
         for (int i=0; i<Feedback::NumBiasChannels; i++)
@@ -288,7 +288,7 @@ private:
 
         // --------------- Calculate old style calibration ----------------------
 
-        fCalibration.resize(BIAS::kNumChannels*4);
+        fCalibration.resize(BIAS::kNumChannels * sizeof(float));
 
         float *pavg  = fCalibration.data();
         float *prms  = fCalibration.data()+BIAS::kNumChannels;
@@ -997,7 +997,7 @@ private:
 
     int Start(const EventImp &evt)
     {
-        if (!CheckEventSize(evt.GetSize(), "Start", 4))
+        if (!CheckEventSize(evt.GetSize(), "Start", sizeof(float)))
             return kSM_FatalError;
 
         fUserOffset = evt.GetFloat() - Feedback::DefaultOverVoltage;
