@@ -565,10 +565,10 @@ private:
 
         int Ndev[3] = { 0, 0, 0 };
 
-        Feedback::DimCurrents_t data;
+        Feedback::DimCurrents_t calibrated_currents;
 
-        data.Unom   = voltageoffset;
-        data.dUtemp = fTempOffsetAvg;
+        calibrated_currents.Unom   = voltageoffset;
+        calibrated_currents.dUtemp = fTempOffsetAvg;
 
         vector<float> command_voltages(BIAS::kNumChannels);
 
@@ -700,8 +700,8 @@ private:
 
             const double iapd = Iapd*1e6; // A --> uA
 
-            data.I[i]   = iapd;
-            data.Uov[i] = Uov;
+            calibrated_currents.I[i]   = iapd;
+            calibrated_currents.Uov[i] = Uov;
 
             if (!blocked)
             {
@@ -716,8 +716,8 @@ private:
                 if (Uov>max[g])
                     max[g] = Uov;
 
-                data.Iavg += iapd;
-                data.Irms += iapd*iapd;
+                calibrated_currents.Iavg += iapd;
+                calibrated_currents.Irms += iapd*iapd;
 
                 med[2][num[2]++] = iapd;
 
@@ -730,28 +730,28 @@ private:
         // ---------------------------- Calculate statistics ----------------------------------
 
         // average and rms
-        data.Iavg /= num[2];
-        data.Irms /= num[2];
-        data.Irms -= data.Iavg*data.Iavg;
+        calibrated_currents.Iavg /= num[2];
+        calibrated_currents.Irms /= num[2];
+        calibrated_currents.Irms -= calibrated_currents.Iavg*calibrated_currents.Iavg;
 
-        data.N = num[2];
-        data.Irms = data.Irms<0 ? 0: sqrt(data.Irms);
+        calibrated_currents.N = num[2];
+        calibrated_currents.Irms = calibrated_currents.Irms<0 ? 0: sqrt(calibrated_currents.Irms);
 
         // median
         sort(med[2].data(), med[2].data()+num[2]);
 
-        data.Imed = num[2]%2 ? med[2][num[2]/2] : (med[2][num[2]/2-1]+med[2][num[2]/2])/2;
+        calibrated_currents.Imed = num[2]%2 ? med[2][num[2]/2] : (med[2][num[2]/2-1]+med[2][num[2]/2])/2;
 
         // deviation
         for (int i=0; i<num[2]; i++)
-            med[2][i] = fabs(med[2][i]-data.Imed);
+            med[2][i] = fabs(med[2][i]-calibrated_currents.Imed);
 
         sort(med[2].data(), med[2].data()+num[2]);
 
-        data.Idev = med[2][uint32_t(0.682689477208650697*num[2])];
+        calibrated_currents.Idev = med[2][uint32_t(0.682689477208650697*num[2])];
 
         // time difference to calibration
-        data.Tdiff = evt.GetTime().UnixTime()-fTimeCalib.UnixTime();
+        calibrated_currents.Tdiff = evt.GetTime().UnixTime()-fTimeCalib.UnixTime();
 
         // Average overvoltage
         const double Uov = (avg[0]+avg[1])/(num[0]+num[1]);
@@ -764,7 +764,7 @@ private:
         {
             if (fDimBias.state()!=BIAS::State::kRamping)
             {
-                newstate = CheckLimits(data.I);
+                newstate = CheckLimits(calibrated_currents.I);
 
                 // standby and change reduction level of voltage
                 if (newstate==Feedback::State::kOnStandby)
@@ -772,7 +772,7 @@ private:
                     // Calculate average applied overvoltage and estimate an offset
                     // to reach fAbsoluteMedianCurrentLimit
                     float fAbsoluteMedianCurrentLimit = 85;
-                    const double deltaU = (Uov+Feedback::AlsoDefaultOverVoltage)*(1-pow(fAbsoluteMedianCurrentLimit/data.Imed, 1./1.7));
+                    const double deltaU = (Uov+Feedback::AlsoDefaultOverVoltage)*(1-pow(fAbsoluteMedianCurrentLimit/calibrated_currents.Imed, 1./1.7));
 
                     if (fVoltageReduction+deltaU<0.033)
                         fVoltageReduction = 0;
@@ -814,7 +814,7 @@ private:
         //  + User offset
         //  + Command overvoltage
         fDimCurrents.setQuality(GetCurrentState());
-        fDimCurrents.setData(&data, sizeof(Feedback::DimCurrents_t));
+        fDimCurrents.setData(&calibrated_currents, sizeof(Feedback::DimCurrents_t));
         fDimCurrents.Update(evt.GetTime());
 
         // FIXME: To be checked
