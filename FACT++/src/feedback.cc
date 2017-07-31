@@ -570,7 +570,7 @@ private:
         data.Unom   = voltageoffset;
         data.dUtemp = fTempOffsetAvg;
 
-        vector<float> vec(BIAS::kNumChannels);
+        vector<float> command_voltages(BIAS::kNumChannels);
 
         // ================================= old =======================
         // Pixel  583: 5 31 == 191 (5)  C2 B3 P3
@@ -696,7 +696,7 @@ private:
                 Ndev[2]++;
 
             // Voltage set point
-            vec[i] = Uset;
+            command_voltages[i] = Uset;
 
             const double iapd = Iapd*1e6; // A --> uA
 
@@ -781,19 +781,19 @@ private:
                         fVoltageReduction += deltaU;
 
                         for (int i=0; i<Feedback::NumBiasChannels; i++)
-                            vec[i] -= fVoltageReduction;
+                            command_voltages[i] -= fVoltageReduction;
                     }
                 }
 
                 // set voltage in 262 -> current in 262/263
-                vec[263] = vec[262] - fVoltGapd[262] + fVoltGapd[263];
+                command_voltages[263] = command_voltages[262] - fVoltGapd[262] + fVoltGapd[263];
 
                 // Do not ramp the channel with a shortcut
-                vec[Feedback::ABrokenBoard] = 0;
+                command_voltages[Feedback::ABrokenBoard] = 0;
 
                 DimClient::sendCommandNB(
                     "BIAS_CONTROL/SET_ALL_CHANNELS_VOLTAGE",
-                    vec.data(),
+                    command_voltages.data(),
                     BIAS::kNumChannels * sizeof(float)
                 );
 
