@@ -563,25 +563,9 @@ private:
         med[1].resize(BIAS::kNumChannels);
         med[2].resize(BIAS::kNumChannels);
 
-        struct dim_data
-        {
-            float I[BIAS::kNumChannels];
-            float Iavg;
-            float Irms;
-            float Imed;
-            float Idev;
-            uint32_t N;
-            float Tdiff;
-            float Uov[BIAS::kNumChannels];
-            float Unom;
-            float dUtemp;
-
-            dim_data() { memset(this, 0, sizeof(dim_data)); }
-        } __attribute__((__packed__));
-
         int Ndev[3] = { 0, 0, 0 };
 
-        dim_data data;
+        Feedback::DimCurrents_t data;
 
         data.Unom   = voltageoffset;
         data.dUtemp = fTempOffsetAvg;
@@ -836,7 +820,7 @@ private:
                 // FIXME: What if fVolatgeReduction > U1.4V?
 
                 // set voltage in 262 -> current in 262/263
-                vec[263] = vec[262]-fVoltGapd[262]+fVoltGapd[263];
+                vec[263] = vec[262] - fVoltGapd[262] + fVoltGapd[263];
 
                 // Do not ramp the channel with a shortcut
                 vec[Feedback::ABrokenBoard] = 0;
@@ -908,7 +892,7 @@ private:
         //  + User offset
         //  + Command overvoltage
         fDimCurrents.setQuality(GetCurrentState());
-        fDimCurrents.setData(&data, sizeof(dim_data));
+        fDimCurrents.setData(&data, sizeof(Feedback::DimCurrents_t));
         fDimCurrents.Update(evt.GetTime());
 
         // FIXME: To be checked
