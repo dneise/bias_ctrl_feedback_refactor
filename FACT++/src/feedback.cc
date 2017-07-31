@@ -37,7 +37,7 @@ private:
     DimDescribedState fDimFSC;
     DimDescribedState fDimBias;
 
-    DimDescribedService fDimCalibration2;
+    DimDescribedService fDimCalibration;
     DimDescribedService fDimCalibrationR8;
     DimDescribedService fDimCurrents;
     DimDescribedService fDimOffsets;
@@ -263,8 +263,8 @@ private:
         memcpy(cal.Iavg, avg.data(),       BIAS::kNumChannels*sizeof(float));
         memcpy(cal.Irms, rms.data(),       BIAS::kNumChannels*sizeof(float));
 
-        fDimCalibration2.setData(cal);
-        fDimCalibration2.Update(fTimeCalib);
+        fDimCalibration.setData(cal);
+        fDimCalibration.Update(fTimeCalib);
 
         // -------------------- Start next calibration steo ---------------------
 
@@ -1088,7 +1088,7 @@ public:
         fIsVerbose(false),
         fDimFSC("FSC_CONTROL"),
         fDimBias("BIAS_CONTROL"),
-        fDimCalibration2("FEEDBACK/CALIBRATION_STEPS", "I:1;F:416;F:416;F:416",
+        fDimCalibration("FEEDBACK/CALIBRATION_STEPS", "I:1;F:416;F:416;F:416",
                         "Calibration of the R8 resistor"
                         "|DAC[dac]:DAC setting"
                         "|U[V]:Corresponding voltages reported by biasctrl"
