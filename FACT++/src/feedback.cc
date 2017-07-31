@@ -37,7 +37,6 @@ private:
     DimDescribedState fDimFSC;
     DimDescribedState fDimBias;
 
-    DimDescribedService fDimCalibration;
     DimDescribedService fDimCalibration2;
     DimDescribedService fDimCalibrationR8;
     DimDescribedService fDimCurrents;
@@ -54,7 +53,6 @@ private:
     vector<float>    fBiasR9;       //
     vector<uint16_t> fBiasDac;      // Dac value corresponding to the voltage setting
 
-    vector<float>    fCalibration;
     vector<float>    fCalibDeltaI;
     vector<float>    fCalibR8;
 
@@ -286,31 +284,6 @@ private:
 
             return GetCurrentState();
         }
-
-        // --------------- Calculate old style calibration ----------------------
-
-        fCalibration.resize(BIAS::kNumChannels * sizeof(float));
-
-        float *pavg  = fCalibration.data();
-        float *prms  = fCalibration.data()+BIAS::kNumChannels;
-        float *pres  = fCalibration.data()+BIAS::kNumChannels*2;
-        float *pUmes = fCalibration.data()+BIAS::kNumChannels*3;
-
-        for (int i=0; i<BIAS::kNumChannels; i++)
-        {
-            const double I = fCalibCurrentMes[5][i]; // [A]
-            const double U = fBiasVolt[i];           // [V]
-
-            pavg[i]  = I*1e6;                        // [uA]
-            prms[i]  = rms[i]*1e6;                   // [uA]
-            pres[i]  = U/I;                          // [Ohm]
-            pUmes[i] = U;                            // [V]
-        }
-
-        fDimCalibration.setData(fCalibration);
-        fDimCalibration.Update(fTimeCalib);
-
-        // -------------------- New style calibration --------------------------
 
         fCalibDeltaI.resize(BIAS::kNumChannels);
         fCalibR8.resize(BIAS::kNumChannels);
@@ -1115,12 +1088,6 @@ public:
         fIsVerbose(false),
         fDimFSC("FSC_CONTROL"),
         fDimBias("BIAS_CONTROL"),
-        fDimCalibration("FEEDBACK/CALIBRATION", "F:416;F:416;F:416;F:416",
-                        "Current offsets"
-                        "|Avg[uA]:Average offset at dac=256+5*512"
-                        "|Rms[uA]:Rms of Avg"
-                        "|R[Ohm]:Measured calibration resistor"
-                        "|U[V]:Corresponding voltage reported by biasctrl"),
         fDimCalibration2("FEEDBACK/CALIBRATION_STEPS", "I:1;F:416;F:416;F:416",
                         "Calibration of the R8 resistor"
                         "|DAC[dac]:DAC setting"
