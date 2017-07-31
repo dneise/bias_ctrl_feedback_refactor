@@ -1333,6 +1333,8 @@ void PrintHelp()
 
 int main(int argc, const char* argv[])
 {
+    assert(sizeof(float) == 4);
+
     Configuration conf(argv[0]);
     conf.SetPrintUsage(PrintUsage);
     Main::SetupConfiguration(conf);
