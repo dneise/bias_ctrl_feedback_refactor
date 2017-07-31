@@ -889,9 +889,9 @@ private:
 
         // Ramp all channels to the calibration setting except the one
         // with a shortcut
-        vector<uint16_t> vec(BIAS::kNumChannels, get_calibration_dac_value());
-        vec[Feedback::ABrokenBoard] = 0;
-        Dim::SendCommandNB("BIAS_CONTROL/SET_ALL_CHANNELS_DAC", vec);
+        vector<uint16_t> command_dac_values(BIAS::kNumChannels, get_calibration_dac_value());
+        command_dac_values[Feedback::ABrokenBoard] = 0;
+        Dim::SendCommandNB("BIAS_CONTROL/SET_ALL_CHANNELS_DAC", command_dac_values);
 
         return Feedback::State::kCalibrating;
     }
