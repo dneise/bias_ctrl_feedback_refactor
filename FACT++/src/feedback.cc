@@ -475,7 +475,12 @@ private:
 
     int HandleBiasCurrent(const EventImp &evt)
     {
-        if (!CheckEventSize(evt.GetSize(), "HandleBiasCurrent", BIAS::kNumChannels*sizeof(uint16_t)))
+        if (!CheckEventSize(
+                evt.GetSize(),
+                "HandleBiasCurrent",
+                BIAS::kNumChannels * sizeof(uint16_t)
+            )
+        )
             return Feedback::State::kConnected;
 
         if (GetCurrentState()<Feedback::State::kCalibrating)
