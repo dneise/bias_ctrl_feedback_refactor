@@ -622,19 +622,6 @@ private:
 
             const double R = serial_resistor(i);
 
-            // For the patches with a broken resistor - ignoring the G-APD resistance -
-            // we get:
-            //
-            // I[R=3900] =  Iout *      1/(10+(N-1))  = Iout        /(N+9)
-            // I[R= 390] =  Iout * (1 - 1/(10+(N-1))) = Iout * (N+8)/(N+9)
-            //
-            // I[R=390] / I[R=3900] = N+8
-            //
-            // Udrp = Iout*3900/(N+9) + Iout*1000 + Iout*1000 = Iout * R
-
-            // Voltage drop in R4/R5 branch (for the G-APDs with correct resistor)
-            // The voltage drop should not be <0, otherwise an unphysical value
-            // would be amplified when Uset is calculated.
             const double Udrp = Iout<0 ? 0 : R*Iout;
 
             // Nominal operation voltage with correction for temperature dependence
