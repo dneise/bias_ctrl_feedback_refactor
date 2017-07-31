@@ -932,13 +932,13 @@ private:
 
     bool LoadOffsets(const string &file)
     {
-        vector<double> data(BIAS::kNumChannels);
+        vector<double> input_numbers(BIAS::kNumChannels);
 
         ifstream fin(file);
 
         int cnt = 0;
         while (fin && cnt<Feedback::NumBiasChannels)
-            fin >> data[cnt++];
+            fin >> input_numbers[cnt++];
 
         if (cnt!=Feedback::NumBiasChannels)
         {
@@ -946,7 +946,7 @@ private:
             return false;
         }
 
-        fVoltOffset = data;
+        fVoltOffset = input_numbers;
 
         fDimOffsets.Update(fVoltOffset);
 
