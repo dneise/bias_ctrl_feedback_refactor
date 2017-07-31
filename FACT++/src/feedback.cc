@@ -201,7 +201,7 @@ private:
         if (fCursorCur<n)
             return make_pair(vector<float>(), vector<float>());
 
-        const double conv = 5e-3 / 4096;
+        const double conv = Feedback::c5;
 
         vector<float> rms(BIAS::kNumChannels);
         vector<float> avg(BIAS::kNumChannels);
@@ -331,7 +331,7 @@ private:
 
             for (int j=beg; j<=end; j++)
             {
-                const double Idac = (256+512*j)*1e-3/4096;
+                const double Idac = (256+512*j) * Feedback::c1;
 
                 x  += Idac;
                 xx += Idac*Idac;
@@ -610,7 +610,7 @@ private:
             // Average measured ADC value for this channel
             // FIXME: This is a workaround for the problem with the
             // readout of bias voltage channel 263
-            const double adc = Imes[i]/* * (5e-3/4096)*/; // [A]
+            const double adc = Imes[i]; // [A]
 
             // Current through ~100 Ohm measurement resistor
             //const double I8 = (adc-fCalibDeltaI[i])*fCalibR8[i]/100;
@@ -619,7 +619,7 @@ private:
             // Current through calibration resistors (R9)
             // This is uncalibrated, but since the corresponding calibrated
             // value I8 is subtracted, the difference should yield a correct value
-            const double I9 = fBiasDac[i] * (1e-3/4096);//U9/R9;   [A]
+            const double I9 = fBiasDac[i] * Feedback::c1;//U9/R9;   [A]
 
             // Current in R4/R5 branch
             //const double Iout = I8 - I9;//I8>I9 ? I8 - I9 : 0;
