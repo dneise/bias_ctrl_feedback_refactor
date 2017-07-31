@@ -837,31 +837,11 @@ private:
                 UdrpRms -= UdrpAvg*UdrpAvg;
                 UdrpRms  = UdrpRms<0 ? 0 : sqrt(UdrpRms);
 
-                ostringstream msg;
-                msg << fixed;
-                msg << setprecision(2) << "dU(" << fTemp << "degC)="
-                    << setprecision(3) << fTempOffsetAvg << "V+-" << fTempOffsetRms << "  Udrp="
-                    << UdrpAvg << "V+-" << UdrpRms;
-                msg.unsetf(ios_base::floatfield);
 
-                if (fVoltageReduction==0)
-                    msg << " Unom=" << voltageoffset << "V";
-                else
-                    msg << " Ured=" << fVoltageReduction << "V";
-
-                msg << " Uov=" << Uov;
-                msg << " Imed=" << data.Imed << "uA [N=" << Ndev[0] << "/" << Ndev[1] << "/" << Ndev[2] << "]";
-                Info(msg);
             }
         }
         else
         {
-            if (fDimBias.state()==BIAS::State::kVoltageOn)
-            {
-                ostringstream msg;
-                msg << setprecision(4) << "Current status: dU(" << fTemp << "degC)=" << fTempOffsetAvg << "V+-" << fTempOffsetRms << ", Unom=" << voltageoffset << "V, Uov=" << (num[0]+num[1]>0?(avg[0]+avg[1])/(num[0]+num[1]):0) << " [N=" << Ndev[0] << "/" << Ndev[1] << "/" << Ndev[2] << "]";
-                Info(msg);
-            }
         }
 
         // --------------------------------- Console out --------------------------------------
