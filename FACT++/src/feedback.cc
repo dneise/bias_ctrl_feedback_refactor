@@ -122,7 +122,7 @@ private:
             fVoltGapd.assign(evt.Ptr<float>(), evt.Ptr<float>()+BIAS::kNumChannels);
             fBiasR9.assign(evt.Ptr<float>()+2*BIAS::kNumChannels, evt.Ptr<float>()+3*BIAS::kNumChannels);
 
-            for (int i=0; i<320; i++)
+            for (int i=0; i<Feedback::NumBiasChannels; i++)
                 fVoltGapd[i] += 1.1;
 
             Info("Nominal bias voltages and calibration resistor received.");
@@ -169,8 +169,8 @@ private:
         fTempOffsetAvg = (fTemp-25)*fTempCoefficient;
         fTempOffsetRms =  evt.Get<float>(322*4)*fTempCoefficient;
 
-        fTempOffset.resize(320);
-        for (int i=0; i<320; i++)
+        fTempOffset.resize(Feedback::NumBiasChannels);
+        for (int i=0; i<Feedback::NumBiasChannels; i++)
             fTempOffset[i] = (ptr[i]-25)*fTempCoefficient;
 
         return GetCurrentState();
@@ -215,7 +215,7 @@ private:
         // Only the channels which are no spare channels are ramped
         // Due to the shortcut, only 319 channels are ramped, so only
         // 320 and not 319 are expected to have the correct day setting
-        if (std::count(fBiasDac.begin(), fBiasDac.end(), dac)!=319/*320*/)
+        if (std::count(fBiasDac.begin(), fBiasDac.end(), dac)!=Feedback::NumBiasChannels - 1)
             return GetCurrentState();
 
         const auto rc = AverageCurrents(evt.Ptr<int16_t>(), fNumCalibRequests);
@@ -368,7 +368,7 @@ private:
         fTimeoutCritical = 3000; // 5s
 
         // Copy the calibrated currents
-        vector<float> v(I, I+320);
+        vector<float> v(I, I+Feedback::NumBiasChannels);
 
         // Exclude the crazy patches (that's currently the best which could be done)
         v[66]  = 0;
@@ -577,7 +577,7 @@ private:
         double UdrpAvg = 0;
         double UdrpRms = 0;
 
-        for (int i=0; i<320/*BIAS::kNumChannels*/; i++)
+        for (int i=0; i<Feedback::NumBiasChannels; i++)
         {
             const PixelMapEntry &hv = fMap.hv(i);
             if (!hv)
@@ -813,7 +813,7 @@ private:
                     {
                         fVoltageReduction += deltaU;
 
-                        for (int i=0; i<320; i++)
+                        for (int i=0; i<Feedback::NumBiasChannels; i++)
                             vec[i] -= fVoltageReduction;
                     }
                 }
@@ -830,8 +830,8 @@ private:
                 DimClient::sendCommandNB("BIAS_CONTROL/SET_ALL_CHANNELS_VOLTAGE",
                                          vec.data(), BIAS::kNumChannels*sizeof(float));
 
-                UdrpAvg /= 320;
-                UdrpRms /= 320;
+                UdrpAvg /= Feedback::NumBiasChannels;
+                UdrpRms /= Feedback::NumBiasChannels;
                 UdrpRms -= UdrpAvg*UdrpAvg;
                 UdrpRms  = UdrpRms<0 ? 0 : sqrt(UdrpRms);
 
@@ -1022,10 +1022,10 @@ private:
         ifstream fin(file);
 
         int cnt = 0;
-        while (fin && cnt<320)
+        while (fin && cnt<Feedback::NumBiasChannels)
             fin >> data[cnt++];
 
-        if (cnt!=320)
+        if (cnt!=Feedback::NumBiasChannels)
         {
             Error("Reading offsets from "+file+" failed [N="+to_string(cnt-1)+"]");
             return false;
