@@ -134,7 +134,7 @@ private:
                 evt.Ptr<float>() + 3*BIAS::kNumChannels);
 
             for (int i=0; i<Feedback::NumBiasChannels; i++)
-                fVoltGapd[i] += 1.1;
+                fVoltGapd[i] += Feedback::DefaultOverVoltage;
 
             Info("Nominal bias voltages and calibration resistor received.");
         }
@@ -1000,7 +1000,7 @@ private:
         if (!CheckEventSize(evt.GetSize(), "Start", 4))
             return kSM_FatalError;
 
-        fUserOffset = evt.GetFloat()-1.1;
+        fUserOffset = evt.GetFloat() - Feedback::DefaultOverVoltage;
         fVoltageReduction = 0;
 
         fCursorCur = 0;
