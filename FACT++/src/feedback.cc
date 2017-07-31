@@ -826,8 +826,11 @@ private:
                 // Do not ramp the channel with a shortcut
                 vec[Feedback::ABrokenBoard] = 0;
 
-                DimClient::sendCommandNB("BIAS_CONTROL/SET_ALL_CHANNELS_VOLTAGE",
-                                         vec.data(), BIAS::kNumChannels*sizeof(float));
+                DimClient::sendCommandNB(
+                    "BIAS_CONTROL/SET_ALL_CHANNELS_VOLTAGE",
+                    vec.data(),
+                    BIAS::kNumChannels * sizeof(float)
+                );
 
                 UdrpAvg /= Feedback::NumBiasChannels;
                 UdrpRms /= Feedback::NumBiasChannels;
