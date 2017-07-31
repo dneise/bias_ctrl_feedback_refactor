@@ -785,9 +785,6 @@ private:
                     }
                 }
 
-                // FIXME: What if the brightest pixel gets too bright???
-                // FIXME: What if fVolatgeReduction > U1.4V?
-
                 // set voltage in 262 -> current in 262/263
                 vec[263] = vec[262] - fVoltGapd[262] + fVoltGapd[263];
 
