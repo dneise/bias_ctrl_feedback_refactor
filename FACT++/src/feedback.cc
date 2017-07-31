@@ -809,30 +809,6 @@ private:
             }
         }
 
-        // --------------------------------- Console out --------------------------------------
-
-        if (fIsVerbose && fDimBias.state()!=BIAS::State::kRamping)
-        {
-            sort(med[0].begin(), med[0].begin()+num[0]);
-            sort(med[1].begin(), med[1].begin()+num[1]);
-
-            ostringstream msg;
-            msg << "   Avg0=" << setw(7) << avg[0]/num[0]    << "  |  Avg1=" << setw(7) << avg[1]/num[1];
-            Debug(msg);
-
-            msg.str("");
-            msg << "   Med0=" << setw(7) << med[0][num[0]/2] << "  |  Med1=" << setw(7) << med[1][num[1]/2];
-            Debug(msg);
-
-            msg.str("");
-            msg << "   Min0=" << setw(7) << min[0]           << "  |  Min1=" << setw(7) << min[1];
-            Debug(msg);
-
-            msg.str("");
-            msg << "   Max0=" << setw(7) << max[0]           << "  |  Max1=" << setw(7) << max[1];
-            Debug(msg);
-        }
-
         // ---------------------------- Calibrated Currents -----------------------------------
 
         // FIXME:
