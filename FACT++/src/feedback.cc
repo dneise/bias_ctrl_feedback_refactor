@@ -201,7 +201,7 @@ private:
         if (fCursorCur<n)
             return make_pair(vector<float>(), vector<float>());
 
-        const double conv = 5e-3/4096;
+        const double conv = 5e-3 / 4096;
 
         vector<float> rms(BIAS::kNumChannels);
         vector<float> avg(BIAS::kNumChannels);
@@ -677,7 +677,7 @@ private:
 
             // Current overvoltage (at a G-APD with the correct 3900 Ohm resistor)
             // expressed w.r.t. to the operation voltage
-            const double Uov = (U9-Udrp)-Uop>-1.4 ? (U9-Udrp)-Uop : -1.4;
+            const double Uov = (U9-Udrp)-Uop>-Feedback::AlsoDefaultOverVoltage ? (U9-Udrp)-Uop : -Feedback::AlsoDefaultOverVoltage;
 
             // The current through one G-APD is the sum divided by the number of G-APDs
             // (assuming identical serial resistors)
@@ -731,9 +731,9 @@ private:
                 Ubd + overvoltage + Udrp*exp(0.6*(overvoltage-Uov))*pow((overvoltage+0.44)/(Uov+0.44), 0.6);
              */
             const double Uset =
-                Uov+1.4<0.022 ?
-                Uop + voltageoffset + Udrp*exp(0.6*(voltageoffset-Uov))*pow((voltageoffset+1.4),           0.6) :
-                Uop + voltageoffset + Udrp*exp(0.6*(voltageoffset-Uov))*pow((voltageoffset+1.4)/(Uov+1.4), 0.6);
+                Uov+Feedback::AlsoDefaultOverVoltage<0.022 ?
+                Uop + voltageoffset + Udrp*exp(0.6*(voltageoffset-Uov))*pow((voltageoffset+Feedback::AlsoDefaultOverVoltage),           0.6) :
+                Uop + voltageoffset + Udrp*exp(0.6*(voltageoffset-Uov))*pow((voltageoffset+Feedback::AlsoDefaultOverVoltage)/(Uov+Feedback::AlsoDefaultOverVoltage), 0.6);
 
             if (fabs(voltageoffset-Uov)>0.033)
                 Ndev[0]++;
@@ -819,7 +819,7 @@ private:
                     // Calculate average applied overvoltage and estimate an offset
                     // to reach fAbsoluteMedianCurrentLimit
                     float fAbsoluteMedianCurrentLimit = 85;
-                    const double deltaU = (Uov+1.4)*(1-pow(fAbsoluteMedianCurrentLimit/data.Imed, 1./1.7));
+                    const double deltaU = (Uov+Feedback::AlsoDefaultOverVoltage)*(1-pow(fAbsoluteMedianCurrentLimit/data.Imed, 1./1.7));
 
                     if (fVoltageReduction+deltaU<0.033)
                         fVoltageReduction = 0;
