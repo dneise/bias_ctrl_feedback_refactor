@@ -732,21 +732,11 @@ private:
         calibrated_currents.N = patch_counter;
         calibrated_currents.Irms = calibrated_currents.Irms<0 ? 0: sqrt(calibrated_currents.Irms);
 
-        // median
-        sort(med[2].data(), med[2].data()+patch_counter);
-
         calibrated_currents.Imed = median(med[2], patch_counter);
-
-        // deviation
-        for (int i=0; i<patch_counter; i++)
-            med[2][i] = fabs(med[2][i]-calibrated_currents.Imed);
-
-        sort(med[2].data(), med[2].data()+patch_counter);
-
-        calibrated_currents.Idev = med[2][uint32_t(0.682689477208650697*patch_counter)];
+        calibrated_currents.Idev = cdf_std_dev(med[2], patch_counter);
 
         // time difference to calibration
-        calibrated_currents.Tdiff = evt.GetTime().UnixTime()-fTimeCalib.UnixTime();
+        calibrated_currents.Tdiff = evt.GetTime().UnixTime() - fTimeCalib.UnixTime();
 
         // Average overvoltage
         const double Uov = (avg[0]+avg[1])/(4pixel_patch_counter+5pixel_patch_counter);
