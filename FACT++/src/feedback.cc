@@ -564,8 +564,6 @@ private:
         med[1].resize(BIAS::kNumChannels);
         med[2].resize(BIAS::kNumChannels);
 
-        int Ndev[3] = { 0, 0, 0 };
-
         Feedback::DimCurrents_t calibrated_currents;
 
         calibrated_currents.Unom   = voltageoffset;
@@ -673,13 +671,6 @@ private:
                 Uov+Feedback::AlsoDefaultOverVoltage<0.022 ?
                 Uop + voltageoffset + Udrp*exp(0.6*(voltageoffset-Uov))*pow((voltageoffset+Feedback::AlsoDefaultOverVoltage),           0.6) :
                 Uop + voltageoffset + Udrp*exp(0.6*(voltageoffset-Uov))*pow((voltageoffset+Feedback::AlsoDefaultOverVoltage)/(Uov+Feedback::AlsoDefaultOverVoltage), 0.6);
-
-            if (fabs(voltageoffset-Uov)>0.033)
-                Ndev[0]++;
-            if (fabs(voltageoffset-Uov)>0.022)
-                Ndev[1]++;
-            if (fabs(voltageoffset-Uov)>0.011)
-                Ndev[2]++;
 
             // Voltage set point
             command_voltages[i] = Uset;
