@@ -557,9 +557,9 @@ private:
         double avg[2] = {   0,   0 };
         double min[2] = {  90,  90 };
         double max[2] = { -90, -90 };
-        int num0 = 0;
-        int num1 = 0;
-        int num2 = 0;
+        int 4pixel_patch_counter = 0;
+        int 5pixel_patch_counter = 0;
+        int patch_counter = 0;
 
 
         vector<double> med[3];
@@ -689,18 +689,18 @@ private:
 
 
                 if (g == 0){
-                    med[0][num0] = Uov;
+                    med[0][4pixel_patch_counter] = Uov;
                     avg[0] += Uov;
-                    num0++;
+                    4pixel_patch_counter++;
                     if (Uov<min[0])
                         min[0] = Uov;
                     if (Uov>max[0])
                         max[0] = Uov;
 
                 } else if (g == 1){
-                    med[1][num1] = Uov;
+                    med[1][5pixel_patch_counter] = Uov;
                     avg[1] += Uov;
-                    num1++;
+                    5pixel_patch_counter++;
                     if (Uov < min[1])
                         min[1] = Uov;
                     if (Uov > max[1])
@@ -712,7 +712,8 @@ private:
                 calibrated_currents.Iavg += iapd;
                 calibrated_currents.Irms += iapd*iapd;
 
-                med[2][num2++] = iapd;
+                med[2][patch_counter] = iapd;
+                patch_counter++;
 
                 UdrpAvg += Udrp;
                 UdrpRms += Udrp*Udrp;
@@ -723,31 +724,31 @@ private:
         // ---------------------------- Calculate statistics ----------------------------------
 
         // average and rms
-        calibrated_currents.Iavg /= num2;
-        calibrated_currents.Irms /= num2;
+        calibrated_currents.Iavg /= patch_counter;
+        calibrated_currents.Irms /= patch_counter;
         calibrated_currents.Irms -= calibrated_currents.Iavg*calibrated_currents.Iavg;
 
-        calibrated_currents.N = num2;
+        calibrated_currents.N = patch_counter;
         calibrated_currents.Irms = calibrated_currents.Irms<0 ? 0: sqrt(calibrated_currents.Irms);
 
         // median
-        sort(med[2].data(), med[2].data()+num2);
+        sort(med[2].data(), med[2].data()+patch_counter);
 
-        calibrated_currents.Imed = num2%2 ? med[2][num2/2] : (med[2][num2/2-1]+med[2][num2/2])/2;
+        calibrated_currents.Imed = patch_counter%2 ? med[2][patch_counter/2] : (med[2][patch_counter/2-1]+med[2][patch_counter/2])/2;
 
         // deviation
-        for (int i=0; i<num2; i++)
+        for (int i=0; i<patch_counter; i++)
             med[2][i] = fabs(med[2][i]-calibrated_currents.Imed);
 
-        sort(med[2].data(), med[2].data()+num2);
+        sort(med[2].data(), med[2].data()+patch_counter);
 
-        calibrated_currents.Idev = med[2][uint32_t(0.682689477208650697*num2)];
+        calibrated_currents.Idev = med[2][uint32_t(0.682689477208650697*patch_counter)];
 
         // time difference to calibration
         calibrated_currents.Tdiff = evt.GetTime().UnixTime()-fTimeCalib.UnixTime();
 
         // Average overvoltage
-        const double Uov = (avg[0]+avg[1])/(num0+num1);
+        const double Uov = (avg[0]+avg[1])/(4pixel_patch_counter+5pixel_patch_counter);
 
         // ------------------------------- Update voltages ------------------------------------
 
