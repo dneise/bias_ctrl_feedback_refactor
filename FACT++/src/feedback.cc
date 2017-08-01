@@ -678,11 +678,7 @@ private:
             // This estimation is based on the linear increase of the
             // gain with voltage and the increase of the crosstalk with
             // voltage, as measured with the overvoltage-tests (OVTEST)
-            /*
-             Uov+0.44<0.022 ?
-                Ubd + overvoltage + Udrp*exp(0.6*(overvoltage-Uov))*pow((overvoltage+0.44), 0.6) :
-                Ubd + overvoltage + Udrp*exp(0.6*(overvoltage-Uov))*pow((overvoltage+0.44)/(Uov+0.44), 0.6);
-             */
+
             const double Uset =
                 Uov+Feedback::AlsoDefaultOverVoltage<0.022 ?
                 Uop + voltageoffset + Udrp*exp(0.6*(voltageoffset-Uov))*pow((voltageoffset+Feedback::AlsoDefaultOverVoltage),           0.6) :
