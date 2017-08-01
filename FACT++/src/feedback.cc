@@ -21,6 +21,7 @@
 #include "DimState.h"
 #include "DimDescriptionService.h"
 
+#include "my_math.h"
 using namespace std;
 
 // ------------------------------------------------------------------------
@@ -734,7 +735,7 @@ private:
         // median
         sort(med[2].data(), med[2].data()+patch_counter);
 
-        calibrated_currents.Imed = patch_counter%2 ? med[2][patch_counter/2] : (med[2][patch_counter/2-1]+med[2][patch_counter/2])/2;
+        calibrated_currents.Imed = median(med[2], patch_counter);
 
         // deviation
         for (int i=0; i<patch_counter; i++)
