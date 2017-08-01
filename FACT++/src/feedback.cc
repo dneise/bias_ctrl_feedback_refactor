@@ -473,6 +473,32 @@ private:
             return R
     }
 
+    bool is_channel_blocked(int bias_patch_id){
+
+        for (moon_mode=0; moon_mode<fMoonMode; moon_mode++){
+            auto ring = Feedback::rings_of_order[moon_mode];
+            if (std::find(
+                ring.begin(),
+                ring.end(),
+                bias_patch_id
+                )!=ring.end())
+            {
+                return true;
+            }
+        }
+
+        if(std::find(
+            Feedback::broken_channels.begin(),
+            Feedback::broken_channels.end(),
+            bias_patch_id
+            )!=Feedback::broken_channels.end())
+        {
+            return true;
+        }
+
+        return false;
+    }
+
     int HandleBiasCurrent(const EventImp &evt)
     {
         if (!CheckEventSize(
@@ -525,31 +551,6 @@ private:
         fCurrentsRms.assign(BIAS::kNumChannels, 0);
         fCursorCur = 0;
 
-        // -------------------------------------------------------------------------------------
-        // Inner patches to be blocked (operated below the operation voltage) in moon mode
-
-        static const array<int, 14> inner0 =
-        {{
-             62,  63, 130, 131, 132, 133, 134,
-            135, 222, 223, 292, 293, 294, 295,
-        }};
-
-        static const array<int, 23> inner1 =
-        {{
-             58,  59,  60,  61, 129, 138, 139, 140, 141, 142, 143, 218,
-            219, 220, 221, 290, 291, 298, 299, 300, 301, 302, 303,
-        }};
-
-        static const array<int, 43> inner2 =
-        {{
-             42,  43,  44,  45,  55,  56,  57,  70,  71,  78,  79,
-             96,  97,  98,  99, 102, 103, 128, 136, 137, 159, 202,
-            203, 204, 205, 214, 216, 217, 228, 230, 231, 256, 257,
-            258, 259, 262, 263, 288, 289, 296, 297, 310, 318
-        }};
-
-        // -------------------------------------------------------------------------------------
-
         // Nominal overvoltage (w.r.t. the bias setup values)
         const double voltageoffset = GetCurrentState()<Feedback::State::kWaitingForData ? 0 : fUserOffset;
 
@@ -586,13 +587,6 @@ private:
             if (!hv)
                 continue;
 
-            // Check if this is a blocked channel
-            const bool blocked =
-                (fMoonMode>0 && std::find(inner0.begin(), inner0.end(), i)!=inner0.end()) ||
-                (fMoonMode>1 && std::find(inner1.begin(), inner1.end(), i)!=inner1.end()) ||
-                (fMoonMode>2 && std::find(inner2.begin(), inner2.end(), i)!=inner2.end()) ||
-                i==Feedback::ABrokenBoard;
-
             // Number of G-APDs in this patch
             const int N = hv.count();
 
@@ -622,7 +616,7 @@ private:
 
             // Nominal operation voltage with correction for temperature dependence
             const double Uop = fVoltGapd[i] + fVoltOffset[i] + fTempOffset[i]
-                + (blocked ? -5 : 0);
+                + (is_channel_blocked(i) ? -5 : 0);
 
             // Current overvoltage (at a G-APD with the correct 3900 Ohm resistor)
             // expressed w.r.t. to the operation voltage
@@ -695,7 +689,7 @@ private:
             calibrated_currents.I[i]   = iapd;
             calibrated_currents.Uov[i] = Uov;
 
-            if (!blocked)
+            if (!is_channel_blocked(i))
             {
                 const int g = hv.group();
 
