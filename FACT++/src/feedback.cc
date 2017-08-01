@@ -557,7 +557,10 @@ private:
         double avg[2] = {   0,   0 };
         double min[2] = {  90,  90 };
         double max[2] = { -90, -90 };
-        int    num[3] = {   0,   0,   0 };
+        int num0 = 0;
+        int num1 = 0;
+        int num2 = 0;
+
 
         vector<double> med[3];
         med[0].resize(BIAS::kNumChannels);
@@ -684,19 +687,32 @@ private:
             {
                 const int g = hv.group();
 
-                med[g][num[g]] = Uov;
-                avg[g] += Uov;
-                num[g]++;
 
-                if (Uov<min[g])
-                    min[g] = Uov;
-                if (Uov>max[g])
-                    max[g] = Uov;
+                if (g == 0){
+                    med[0][num0] = Uov;
+                    avg[0] += Uov;
+                    num0++;
+                    if (Uov<min[0])
+                        min[0] = Uov;
+                    if (Uov>max[0])
+                        max[0] = Uov;
+
+                } else if (g == 1){
+                    med[1][num1] = Uov;
+                    avg[1] += Uov;
+                    num1++;
+                    if (Uov < min[1])
+                        min[1] = Uov;
+                    if (Uov > max[1])
+                        max[1] = Uov;
+                } else {
+                    // this can not happen
+                }
 
                 calibrated_currents.Iavg += iapd;
                 calibrated_currents.Irms += iapd*iapd;
 
-                med[2][num[2]++] = iapd;
+                med[2][num2++] = iapd;
 
                 UdrpAvg += Udrp;
                 UdrpRms += Udrp*Udrp;
@@ -707,31 +723,31 @@ private:
         // ---------------------------- Calculate statistics ----------------------------------
 
         // average and rms
-        calibrated_currents.Iavg /= num[2];
-        calibrated_currents.Irms /= num[2];
+        calibrated_currents.Iavg /= num2;
+        calibrated_currents.Irms /= num2;
         calibrated_currents.Irms -= calibrated_currents.Iavg*calibrated_currents.Iavg;
 
-        calibrated_currents.N = num[2];
+        calibrated_currents.N = num2;
         calibrated_currents.Irms = calibrated_currents.Irms<0 ? 0: sqrt(calibrated_currents.Irms);
 
         // median
-        sort(med[2].data(), med[2].data()+num[2]);
+        sort(med[2].data(), med[2].data()+num2);
 
-        calibrated_currents.Imed = num[2]%2 ? med[2][num[2]/2] : (med[2][num[2]/2-1]+med[2][num[2]/2])/2;
+        calibrated_currents.Imed = num2%2 ? med[2][num2/2] : (med[2][num2/2-1]+med[2][num2/2])/2;
 
         // deviation
-        for (int i=0; i<num[2]; i++)
+        for (int i=0; i<num2; i++)
             med[2][i] = fabs(med[2][i]-calibrated_currents.Imed);
 
-        sort(med[2].data(), med[2].data()+num[2]);
+        sort(med[2].data(), med[2].data()+num2);
 
-        calibrated_currents.Idev = med[2][uint32_t(0.682689477208650697*num[2])];
+        calibrated_currents.Idev = med[2][uint32_t(0.682689477208650697*num2)];
 
         // time difference to calibration
         calibrated_currents.Tdiff = evt.GetTime().UnixTime()-fTimeCalib.UnixTime();
 
         // Average overvoltage
-        const double Uov = (avg[0]+avg[1])/(num[0]+num[1]);
+        const double Uov = (avg[0]+avg[1])/(num0+num1);
 
         // ------------------------------- Update voltages ------------------------------------
 
