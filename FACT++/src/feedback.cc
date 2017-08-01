@@ -732,8 +732,9 @@ private:
         calibrated_currents.N = patch_counter;
         calibrated_currents.Irms = calibrated_currents.Irms<0 ? 0: sqrt(calibrated_currents.Irms);
 
-        calibrated_currents.Imed = median(med[2], patch_counter);
-        calibrated_currents.Idev = cdf_std_dev(med[2], patch_counter);
+        median_and_std_t I_stats = median_and_std(med[2], patch_counter);
+        calibrated_currents.Imed = I_stats.median;
+        calibrated_currents.Idev = I_stats.std;
 
         // time difference to calibration
         calibrated_currents.Tdiff = evt.GetTime().UnixTime() - fTimeCalib.UnixTime();

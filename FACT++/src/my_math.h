@@ -18,7 +18,7 @@ double median(std::vector<T> v, size_t N=0)
 }
 
 template<typename T>
-double cdf_std_dev(std::vector<T> v, size_t, N=0){
+double cdf_std_dev(std::vector<T> v, size_t N=0){
     if (N==0)
         N = v.size();
 
@@ -29,5 +29,38 @@ double cdf_std_dev(std::vector<T> v, size_t, N=0){
     }
     std::sort(tmp.begin(), tmp.begin()+N);
 
-    return double(tmp[size_t(0.6827*patch_counter)]);
+    return double(tmp[size_t(0.6827*N)]);
 }
+
+struct median_and_std_t
+{
+    double median;
+    double std;
+};
+
+template<typename T>
+median_and_std_t median_and_std(std::vector<T> v, size_t N=0){
+    if (N==0)
+        N = v.size();
+
+    std::vector<T> tmp(v);
+    std::sort(tmp.begin(), tmp.begin()+N);
+
+    double med = 0.;
+    if (N%2){
+        med = double(tmp[N/2]);
+    }else{
+        med = double(tmp[N/2 - 1] + tmp[N/2]) / 2.;
+    }
+
+    double right = double(tmp[size_t((0.5+0.341)*N)]);
+    double left = double(tmp[size_t((0.5-0.341)*N)]);
+    double std = (right - left) / 2.;
+
+    median_and_std_t result;
+    result.median = med;
+    result.std = std;
+    return result;
+}
+
+
