@@ -802,18 +802,10 @@ private:
             }
         }
 
-        // ---------------------------- Calibrated Currents -----------------------------------
-
-        // FIXME:
-        //  + Current overvoltage
-        //  + Temp offset
-        //  + User offset
-        //  + Command overvoltage
         fDimCurrents.setQuality(GetCurrentState());
         fDimCurrents.setData(&calibrated_currents, sizeof(Feedback::DimCurrents_t));
         fDimCurrents.Update(evt.GetTime());
 
-        // FIXME: To be checked
         return GetCurrentState()==Feedback::State::kCalibrated ? Feedback::State::kCalibrated : newstate;
     }
 
