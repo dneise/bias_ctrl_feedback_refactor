@@ -616,10 +616,6 @@ private:
             // Applied voltage at calibration resistors, according to biasctrl
             const double U9 = fBiasVolt[i];
 
-            //          new    I8 - I9*100/fCalibR8       100
-            // change = --- = ---------------------- =  --------  = 0.8
-            //          old    I8*fCalibR8/100 - I9     fCalibR8
-
             const double R = serial_resistor(i);
 
             const double Udrp = Iout<0 ? 0 : R*Iout;
