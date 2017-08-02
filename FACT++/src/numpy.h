@@ -41,7 +41,7 @@ std::vector<T> operator+(const std::vector<T>& a, T b)
     std::vector<T> result;
     result.reserve(a.size());
 
-    std::transform(a.begin(), a.end(), b.begin(),
+    std::transform(a.begin(), a.end(), result.begin(),
                     std::bind1st(std::plus<T>(), b));
     return result;
 }
@@ -91,7 +91,7 @@ std::vector<T> operator*(const std::vector<T>& a, T b)
     std::vector<T> result;
     result.reserve(a.size());
 
-    std::transform(a.begin(), a.end(), b.begin(),
+    std::transform(a.begin(), a.end(), result.begin(),
                    std::bind1st(std::multiplies<T>(), b));
     return result;
 }
