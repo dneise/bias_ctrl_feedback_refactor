@@ -135,4 +135,37 @@ std::vector<bool> operator<(const std::vector<T>& a, const std::vector<T>& b)
     return result;
 }
 
+template <typename T>
+std::vector<bool> operator>=(const std::vector<T>& a, const std::vector<T>& b)
+{
+    assert(a.size() == b.size());
+
+    std::vector<T> result;
+    result.reserve(a.size());
+
+    std::transform(a.begin(), a.end(), b.begin(),
+                   std::back_inserter(result), std::greater_equal<T>());
+    return result;
+}
+
+
+
+template <typename T, typename U>
+std::vector<T> set_where(const std::vector<T>& origin, const std::vector<S>& where, T val)
+{
+    assert(a.size() == b.size());
+
+    std::vector<T> result;
+    result.reserve(a.size());
+    for(size_t i=0; i<result.size(); i++){
+        if(where[i]){
+            result[i] = val;
+        }else{
+            result[i] = a[i];
+        }
+    }
+
+    return result;
+}
+
 #define  // FACTPP_NUMPY
