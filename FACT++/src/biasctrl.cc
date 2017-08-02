@@ -149,6 +149,8 @@ private:
         const uint16_t ddd    = ((uint16_t(answer[0])&0xf)<<8) | answer[1];
         const uint16_t error  = (answer[2]>>4)&0xf;
         const uint16_t board  =  answer[2]&0xf;
+        bool reset_button_pressed = bool(error & 0x08);
+        bool device_not_present = bool(error & 0x07 == 0x07)
 
         if (fWrapCounter>=0)
         {
@@ -193,7 +195,7 @@ private:
             return true;
         }
 
-        if (error==0x8) // No device
+        if (reset_button_pressed) // No device
         {
             Message("Reset button on crate pressed!");
             RampAllDacs(0);
@@ -244,7 +246,7 @@ private:
             }
 
             // Not present
-            if (error==0x7 || error==0xf)
+            if (device_not_present)
             {
                 fPresent[board] = false;
                 fCurrent[id]    = 0x8000;
