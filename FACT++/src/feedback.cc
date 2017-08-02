@@ -21,7 +21,9 @@
 #include "DimState.h"
 #include "DimDescriptionService.h"
 
-#include "my_math.h"
+#include "numpy.h"
+#include "stats.h"
+
 using namespace std;
 
 // ------------------------------------------------------------------------
@@ -436,8 +438,11 @@ private:
     }
 
 
-    double serial_resistor(int bias_patch_id){
-            int i = bias_patch_id
+    vector<double> make_serial_resistor(){
+
+        vector<double> result(Feedback::NumBiasChannels, 0.);
+
+        for (size_t i=0; i<result.size(), i++){
             // Serial resistors (one 1kOhm at the output of the bias crate, one 1kOhm in the camera)
             const double R4 = 2000;
 
@@ -471,7 +476,16 @@ private:
             // The voltage drop should not be <0, otherwise an unphysical value
             // would be amplified when Uset is calculated.
 
-            return R
+            result[i] = R;
+        }
+        return result;
+    }
+
+    vector<int> make_blocked_bias_patch_vector(){
+        vector<int> result(Feedback::NumBiasChannels, 0);
+        for (size_t i=0; i<result.size(); i++){
+            result[i] = is_channel_blocked(i);
+        }
     }
 
     bool is_channel_blocked(int bias_patch_id){
@@ -499,6 +513,55 @@ private:
 
         return false;
     }
+
+    vector<int> make_pseudo_number_sipms_per_bias_patch(){
+        vector<int> pseudo_number_sipms_per_bias_patch(Feedback::NumBiasChannels, 0);
+        for (size_t i=0; i<pseudo_number_sipms_per_bias_patch.size(); i++){
+
+            pseudo_number_sipms_per_bias_patch[i] = fMap.hv(i).count();
+
+
+            // Rtot = Uapd/Iout
+            // Ich  = Uapd/Rch = (Rtot*Iout) / Rch = Rtot/Rch * Iout
+            //
+            // Rtot = 3900/N
+            // Rch  = 3900
+            //
+            // Rtot = 1./((N-1)/3900 + 1/X)       X=390 or X=1000
+            // Rch  = 3900
+            //
+            // Rtot/Rch =   1/((N-1)/3900 + 1/X)/3900
+            // Rtot/Rch =   1/( [ X*(N-1) + 3900 ] / [ 3900 * X ])/3900
+            // Rtot/Rch =   X/( [ X*(N-1)/3900 + 1 ] )/3900
+            // Rtot/Rch =   X/( [ X*(N-1) + 3900 ] )
+            // Rtot/Rch =   1/( [ (N-1) + 3900/X ] )
+            //
+            // Rtot/Rch[390Ohm]  =  1/( [ N + 9.0 ] )
+            // Rtot/Rch[1000Ohm] =  1/( [ N + 2.9 ] )
+            //
+            // In this and the previosu case we neglect the resistance of the G-APDs, but we can make an
+            // assumption: The differential resistance depends more on the NSB than on the PDE,
+            // thus it is at least comparable for all G-APDs in the patch. In addition, although the
+            // G-APD with the 390Ohm serial resistor has the wrong voltage applied, this does not
+            // significantly influences the ohmic resistor or the G-APD because the differential
+            // resistor is large enough that the increase of the overvoltage does not dramatically
+            // increase the current flow as compared to the total current flow.
+
+            if (i==66 || i==193)           // Iout/13 15.8   / Iout/14  16.8
+                pseudo_number_sipms_per_bias_patch[i] = fMap.hv(i).count() + 2.9;
+
+            if (i==191)                    // Iout/7.9  38.3
+                pseudo_number_sipms_per_bias_patch[i] = fMap.hv(i).count() + 9;
+
+            if (i==17 || i==206)
+                pseudo_number_sipms_per_bias_patch[i] = fMap.hv(i).count() - 1;
+        }
+
+        return pseudo_number_sipms_per_bias_patch;
+    }
+
+
+
 
     int HandleBiasCurrent(const EventImp &evt)
     {
@@ -548,25 +611,49 @@ private:
         if (Imes.size()==0)
             return GetCurrentState();
 
+        vector<double> adc(Imes.begin(), Imes.end());
+
+        // Current through calibration resistors (R9)
+        // This is uncalibrated, but since the corresponding calibrated
+        // value I8 is subtracted, the difference should yield a correct value
+        //U9/R9;   [A]
+        auto I9 = fBiasDac * Feedback::c1;
+        // Current in R4/R5 branch
+        auto Iout = (adc - fCalibDeltaI) - I9 * fCalibR8;
+        auto R_serial = make_serial_resistor();
+        auto Udrp = vec::clip_low(R_serial * Iout, 0.);
+
+        // Nominal operation voltage with correction for temperature dependence
+        auto blocked = make_blocked_bias_patch_vector();
+        auto blocking_voltage = vec::mult_scalar(-5, blocked);
+        auto Uop = fVoltGapd + fVoltOffset + fTempOffset - blocking_voltage;
+
+        // Current overvoltage (at a G-APD with the correct 3900 Ohm resistor)
+        // expressed w.r.t. to the operation voltage
+        auto Uov = vec::clip_low(fBiasVolt - Udrp - Uop, -Feedback::AlsoDefaultOverVoltage);
+        auto is_over_voltage_bigger = Uov + Feedback::AlsoDefaultOverVoltage >= 0.022;
+
+        auto pseudo_number_sipms_per_bias_patch = make_pseudo_number_sipms_per_bias_patch();
+        auto Iapd = Iout / pseudo_number_sipms_per_bias_patch;
+
+        auto A = voltageoffset + Feedback::AlsoDefaultOverVoltage;
+        auto divisor = (Uov + Feedback::AlsoDefaultOverVoltage);
+
+        auto boom = is_over_voltage_bigger * divisor + (!is_over_voltage_bigger) * 1.;
+        auto Uset = Uop + voltageoffset + Udrp * exp(0.6 * (voltageoffset-Uov)) * pow(A/boom, 0.6);
+
         fCurrentsAvg.assign(BIAS::kNumChannels, 0);
         fCurrentsRms.assign(BIAS::kNumChannels, 0);
         fCursorCur = 0;
 
         // Nominal overvoltage (w.r.t. the bias setup values)
-        const double voltageoffset = GetCurrentState()<Feedback::State::kWaitingForData ? 0 : fUserOffset;
+        const double voltageoffset = GetCurrentState() < Feedback::State::kWaitingForData ? 0 : fUserOffset;
 
-        double avg[2] = {   0,   0 };
-        double min[2] = {  90,  90 };
-        double max[2] = { -90, -90 };
-        int 4pixel_patch_counter = 0;
-        int 5pixel_patch_counter = 0;
-        int patch_counter = 0;
+        double avg;
+        int patch_counter = sum(not(blocked));
 
-
-        vector<double> med[3];
-        med[0].resize(BIAS::kNumChannels);
-        med[1].resize(BIAS::kNumChannels);
-        med[2].resize(BIAS::kNumChannels);
+        vector<double> med;
+        med.resize(BIAS::kNumChannels);
 
         Feedback::DimCurrents_t calibrated_currents;
 
@@ -574,193 +661,54 @@ private:
         calibrated_currents.dUtemp = fTempOffsetAvg;
 
         vector<float> command_voltages(BIAS::kNumChannels);
+        command_voltages.assign(Uset.begin(), Uset.end());
 
-        // ================================= old =======================
-        // Pixel  583: 5 31 == 191 (5)  C2 B3 P3
-        // Pixel  830: 2  2 ==  66 (4)  C0 B8 P1
-        // Pixel 1401: 6  1 == 193 (5)  C2 B4 P0
-
-        double UdrpAvg = 0;
-        double UdrpRms = 0;
-
-        for (int i=0; i<Feedback::NumBiasChannels; i++)
-        {
-            const PixelMapEntry &hv = fMap.hv(i);
-            if (!hv)
-                continue;
-
-            // Number of G-APDs in this patch
-            const int N = hv.count();
-
-            // Average measured ADC value for this channel
-            // FIXME: This is a workaround for the problem with the
-            // readout of bias voltage channel 263
-            const double adc = Imes[i]; // [A]
-
-            // Current through ~100 Ohm measurement resistor
-            const double I8 = adc-fCalibDeltaI[i];
-
-            // Current through calibration resistors (R9)
-            // This is uncalibrated, but since the corresponding calibrated
-            // value I8 is subtracted, the difference should yield a correct value
-            const double I9 = fBiasDac[i] * Feedback::c1;//U9/R9;   [A]
-
-            // Current in R4/R5 branch
-            //const double Iout = I8 - I9;//I8>I9 ? I8 - I9 : 0;
-            const double Iout = I8 - I9 * fCalibR8[i];//I8>I9 ? I8 - I9 : 0;
-
-            // Applied voltage at calibration resistors, according to biasctrl
-            const double U9 = fBiasVolt[i];
-
-            const double R = serial_resistor(i);
-
-            const double Udrp = Iout<0 ? 0 : R*Iout;
-
-            // Nominal operation voltage with correction for temperature dependence
-            const double Uop = fVoltGapd[i] + fVoltOffset[i] + fTempOffset[i]
-                + (is_channel_blocked(i) ? -5 : 0);
-
-            // Current overvoltage (at a G-APD with the correct 3900 Ohm resistor)
-            // expressed w.r.t. to the operation voltage
-            const double Uov = (U9-Udrp)-Uop>-Feedback::AlsoDefaultOverVoltage ? (U9-Udrp)-Uop : -Feedback::AlsoDefaultOverVoltage;
-
-            // The current through one G-APD is the sum divided by the number of G-APDs
-            // (assuming identical serial resistors)
-            double Iapd = Iout/N;
-
-            // Rtot = Uapd/Iout
-            // Ich  = Uapd/Rch = (Rtot*Iout) / Rch = Rtot/Rch * Iout
-            //
-            // Rtot = 3900/N
-            // Rch  = 3900
-            //
-            // Rtot = 1./((N-1)/3900 + 1/X)       X=390 or X=1000
-            // Rch  = 3900
-            //
-            // Rtot/Rch =   1/((N-1)/3900 + 1/X)/3900
-            // Rtot/Rch =   1/( [ X*(N-1) + 3900 ] / [ 3900 * X ])/3900
-            // Rtot/Rch =   X/( [ X*(N-1)/3900 + 1 ] )/3900
-            // Rtot/Rch =   X/( [ X*(N-1) + 3900 ] )
-            // Rtot/Rch =   1/( [ (N-1) + 3900/X ] )
-            //
-            // Rtot/Rch[390Ohm]  =  1/( [ N + 9.0 ] )
-            // Rtot/Rch[1000Ohm] =  1/( [ N + 2.9 ] )
-            //
-            // In this and the previosu case we neglect the resistance of the G-APDs, but we can make an
-            // assumption: The differential resistance depends more on the NSB than on the PDE,
-            // thus it is at least comparable for all G-APDs in the patch. In addition, although the
-            // G-APD with the 390Ohm serial resistor has the wrong voltage applied, this does not
-            // significantly influences the ohmic resistor or the G-APD because the differential
-            // resistor is large enough that the increase of the overvoltage does not dramatically
-            // increase the current flow as compared to the total current flow.
-            if (i==66 || i==193)           // Iout/13 15.8   / Iout/14  16.8
-                Iapd = Iout/(N+2.9);
-            if (i==191)                    // Iout/7.9  38.3
-                Iapd = Iout/(N+9);
-            if (i==17 || i==206)
-                Iapd = Iout/(N-1);
-
-            // The differential resistance of the G-APD, i.e. the dependence of the
-            // current above the breakdown voltage, is given by
-            //const double Rapd = Uov/Iapd;
-            // This allows us to estimate the current Iov at the overvoltage we want to apply
-            //const double Iov = overvoltage/Rapd;
-
-            // Estimate set point for over-voltage (voltage drop at the target point)
-            // This estimation is based on the linear increase of the
-            // gain with voltage and the increase of the crosstalk with
-            // voltage, as measured with the overvoltage-tests (OVTEST)
-
-            const double Uset =
-                Uov+Feedback::AlsoDefaultOverVoltage<0.022 ?
-                Uop + voltageoffset + Udrp*exp(0.6*(voltageoffset-Uov))*pow((voltageoffset+Feedback::AlsoDefaultOverVoltage),           0.6) :
-                Uop + voltageoffset + Udrp*exp(0.6*(voltageoffset-Uov))*pow((voltageoffset+Feedback::AlsoDefaultOverVoltage)/(Uov+Feedback::AlsoDefaultOverVoltage), 0.6);
-
-            // Voltage set point
-            command_voltages[i] = Uset;
-
-            const double iapd = Iapd*1e6; // A --> uA
-
-            calibrated_currents.I[i]   = iapd;
-            calibrated_currents.Uov[i] = Uov;
-
-            if (!is_channel_blocked(i))
-            {
-                const int g = hv.group();
+        auto iapd = Iapd * 1e6; // A --> uA
+        calibrated_currents.I.assign(iapd.begin(), iapd.end());
+        calibrated_currents.Uov.assign(Uov.begin(), Uov.end());
 
 
-                if (g == 0){
-                    med[0][4pixel_patch_counter] = Uov;
-                    avg[0] += Uov;
-                    4pixel_patch_counter++;
-                    if (Uov<min[0])
-                        min[0] = Uov;
-                    if (Uov>max[0])
-                        max[0] = Uov;
+        auto iapd_masked = mask(iapd, blocked, 0.);
+        auto Uov_masked = mask(Uov, blocked, std::nan());
 
-                } else if (g == 1){
-                    med[1][5pixel_patch_counter] = Uov;
-                    avg[1] += Uov;
-                    5pixel_patch_counter++;
-                    if (Uov < min[1])
-                        min[1] = Uov;
-                    if (Uov > max[1])
-                        max[1] = Uov;
-                } else {
-                    // this can not happen
-                }
-
-                calibrated_currents.Iavg += iapd;
-                calibrated_currents.Irms += iapd*iapd;
-
-                med[2][patch_counter] = iapd;
-                patch_counter++;
-
-                UdrpAvg += Udrp;
-                UdrpRms += Udrp*Udrp;
-            }
-        }
-
-
-        // ---------------------------- Calculate statistics ----------------------------------
-
-        // average and rms
-        calibrated_currents.Iavg /= patch_counter;
-        calibrated_currents.Irms /= patch_counter;
-        calibrated_currents.Irms -= calibrated_currents.Iavg*calibrated_currents.Iavg;
-
-        calibrated_currents.N = patch_counter;
-        calibrated_currents.Irms = calibrated_currents.Irms<0 ? 0: sqrt(calibrated_currents.Irms);
-
-        median_and_std_t I_stats = median_and_std(med[2], patch_counter);
+        stats_t I_stats = calc_stats(iapd_masked, patch_counter);
         calibrated_currents.Imed = I_stats.median;
-        calibrated_currents.Idev = I_stats.std;
-
+        calibrated_currents.Idev = I_stats.cdf_std;
+        calibrated_currents.Iavg = I_stats.mean;
+        calibrated_currents.Irms = I_stats.std
+        calibrated_currents.N = patch_counter;
         // time difference to calibration
         calibrated_currents.Tdiff = evt.GetTime().UnixTime() - fTimeCalib.UnixTime();
 
         // Average overvoltage
-        const double Uov = (avg[0]+avg[1])/(4pixel_patch_counter+5pixel_patch_counter);
+        const double Uov = calc_stats(Uov_masked, patch_counter).nanmean();
 
         // ------------------------------- Update voltages ------------------------------------
 
         int newstate = GetCurrentState();
 
-        if (GetCurrentState()!=Feedback::State::kCalibrated) // WaitingForData, OnStandby, InProgress, kWarning, kCritical
+        // if state in WaitingForData, OnStandby, InProgress, kWarning, kCritical
+        if (GetCurrentState() != Feedback::State::kCalibrated)
         {
-            if (fDimBias.state()!=BIAS::State::kRamping)
+            if (fDimBias.state() != BIAS::State::kRamping)
             {
                 newstate = CheckLimits(calibrated_currents.I);
 
                 // standby and change reduction level of voltage
-                if (newstate==Feedback::State::kOnStandby)
+                if (newstate == Feedback::State::kOnStandby)
                 {
                     // Calculate average applied overvoltage and estimate an offset
                     // to reach fAbsoluteMedianCurrentLimit
                     float fAbsoluteMedianCurrentLimit = 85;
-                    const double deltaU = (Uov+Feedback::AlsoDefaultOverVoltage)*(1-pow(fAbsoluteMedianCurrentLimit/calibrated_currents.Imed, 1./1.7));
+                    const double deltaU = (
+                        Uov + Feedback::AlsoDefaultOverVoltage
+                        ) * ( 1 - pow(
+                            fAbsoluteMedianCurrentLimit / calibrated_currents.Imed,
+                            1./1.7
+                            )
+                        );
 
-                    if (fVoltageReduction+deltaU<0.033)
+                    if (fVoltageReduction + deltaU < 0.033)
                         fVoltageReduction = 0;
                     else
                     {
@@ -782,12 +730,6 @@ private:
                     command_voltages.data(),
                     BIAS::kNumChannels * sizeof(float)
                 );
-
-                UdrpAvg /= Feedback::NumBiasChannels;
-                UdrpRms /= Feedback::NumBiasChannels;
-                UdrpRms -= UdrpAvg*UdrpAvg;
-                UdrpRms  = UdrpRms<0 ? 0 : sqrt(UdrpRms);
-
 
             }
         }
