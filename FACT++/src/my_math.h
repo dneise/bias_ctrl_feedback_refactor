@@ -1,51 +1,127 @@
+#ifndef FACTPP_NUMPY
+#define FACTPP_NUMPY
+
+/*
+This lib provides elementwise vector operations, similar to python-numpy.
+
+These functions are provided at the moment:
+
+sum = a + b
+difference = a - b
+product = a * b
+quotient = a / b
+scale_vector_a = c * a
+power = a ^ b
+is_smaller = a < b
+e_function = exp(a)
+
+*/
+
 #include <vector>
+#include <algorithm>
+#include <functional>
 
-template<typename T>
-double median(std::vector<T> v, size_t N=0)
+
+template <typename T>
+std::vector<T> operator+(const std::vector<T>& a, const std::vector<T>& b)
 {
-    if (N==0)
-        N = v.size();
+    assert(a.size() == b.size());
 
-    std::vector<T> tmp(v);
-    std::sort(tmp.begin(), tmp.begin()+N);
+    std::vector<T> result;
+    result.reserve(a.size());
 
-    if (N%2){
-        return double(tmp[N/2]);
-    }else{
-        return double(tmp[N/2 - 1] + tmp[N/2]) / 2.;
-    }
-
-}
-
-struct median_and_std_t
-{
-    double median;
-    double std;
-};
-
-template<typename T>
-median_and_std_t median_and_std(std::vector<T> v, size_t N=0){
-    if (N==0)
-        N = v.size();
-
-    std::vector<T> tmp(v);
-    std::sort(tmp.begin(), tmp.begin()+N);
-
-    double med = 0.;
-    if (N%2){
-        med = double(tmp[N/2]);
-    }else{
-        med = double(tmp[N/2 - 1] + tmp[N/2]) / 2.;
-    }
-
-    double right = double(tmp[size_t((0.5+0.341)*N)]);
-    double left = double(tmp[size_t((0.5-0.341)*N)]);
-    double std = (right - left) / 2.;
-
-    median_and_std_t result;
-    result.median = med;
-    result.std = std;
+    std::transform(a.begin(), a.end(), b.begin(),
+                   std::back_inserter(result), std::plus<T>());
     return result;
 }
 
+template <typename T>
+std::vector<T> operator-(const std::vector<T>& a, const std::vector<T>& b)
+{
+    assert(a.size() == b.size());
 
+    std::vector<T> result;
+    result.reserve(a.size());
+
+    std::transform(a.begin(), a.end(), b.begin(),
+                   std::back_inserter(result), std::minus<T>());
+    return result;
+}
+
+template <typename T>
+std::vector<T> operator*(const std::vector<T>& a, const std::vector<T>& b)
+{
+    assert(a.size() == b.size());
+
+    std::vector<T> result;
+    result.reserve(a.size());
+
+    std::transform(a.begin(), a.end(), b.begin(),
+                   std::back_inserter(result), std::multiplies<T>());
+    return result;
+}
+
+template <typename T>
+std::vector<T> operator/(const std::vector<T>& a, const std::vector<T>& b)
+{
+    assert(a.size() == b.size());
+
+    std::vector<T> result;
+    result.reserve(a.size());
+
+    std::transform(a.begin(), a.end(), b.begin(),
+                   std::back_inserter(result), std::devides<T>());
+    return result;
+}
+
+template <typename T>
+std::vector<T> operator*(const std::vector<T>& a, double b)
+{
+    std::vector<T> result;
+    result.reserve(a.size());
+
+    std::transform(a.begin(), a.end(), b.begin(),
+                   std::bind1st(std::multiplies<T>(), b));
+    return result;
+}
+
+template <typename T>
+std::vector<T> operator^(const std::vector<T>& a, const std::vector<T>& b)
+{
+    assert(a.size() == b.size());
+
+    std::vector<T> result;
+    result.reserve(a.size());
+    for(size_t i=0; i<result.size(); i++){
+        result[i] = pow(a[i], b[i]);
+    }
+
+    return result;
+}
+
+template <typename T>
+std::vector<T> exp(const std::vector<T>& a)
+{
+    std::vector<T> result;
+    result.reserve(a.size());
+    for(size_t i=0; i<result.size(); i++){
+        result[i] = exp(a[i]);
+    }
+
+    return result;
+}
+
+template <typename T>
+std::vector<bool> operator<(const std::vector<T>& a, const std::vector<T>& b)
+{
+    assert(a.size() == b.size());
+
+    std::vector<T> result;
+    result.reserve(a.size());
+
+    std::transform(a.begin(), a.end(), b.begin(),
+                   std::back_inserter(result), std::less<T>());
+    return result;
+}
+
+#define  // FACTPP_NUMPY
