@@ -36,6 +36,17 @@ std::vector<T> operator+(const std::vector<T>& a, const std::vector<T>& b)
 }
 
 template <typename T>
+std::vector<T> operator+(const std::vector<T>& a, T b)
+{
+    std::vector<T> result;
+    result.reserve(a.size());
+
+    std::transform(a.begin(), a.end(), b.begin(),
+                    std::bind1st(std::plus<T>(), b));
+    return result;
+}
+
+template <typename T>
 std::vector<T> operator-(const std::vector<T>& a, const std::vector<T>& b)
 {
     assert(a.size() == b.size());
@@ -75,7 +86,7 @@ std::vector<T> operator/(const std::vector<T>& a, const std::vector<T>& b)
 }
 
 template <typename T>
-std::vector<T> operator*(const std::vector<T>& a, double b)
+std::vector<T> operator*(const std::vector<T>& a, T b)
 {
     std::vector<T> result;
     result.reserve(a.size());
