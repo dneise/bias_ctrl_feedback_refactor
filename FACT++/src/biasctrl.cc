@@ -195,7 +195,7 @@ private:
             return true;
         }
 
-        if (reset_button_pressed) // No device
+        if (reset_button_pressed)
         {
             Message("Reset button on crate pressed!");
             RampAllDacs(0);
@@ -245,7 +245,6 @@ private:
                 return false;
             }
 
-            // Not present
             if (device_not_present)
             {
                 fPresent[board] = false;
