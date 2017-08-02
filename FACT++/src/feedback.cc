@@ -82,8 +82,6 @@ private:
     uint16_t fNumCalibRequests;
     uint16_t fCalibStep;
 
-    uint16_t fTimeoutCritical;
-
     // ============================= Handle Services ========================
 
     int HandleBiasStateChange()
@@ -343,8 +341,6 @@ private:
         const float fRelativeCurrentLimitCritical = 15;//20;
         const float fRelativeCurrentLimitShutdown = 25;
 
-        fTimeoutCritical = 3000; // 5s
-
         // Copy the calibrated currents
         vector<float> v(I, I+Feedback::NumBiasChannels);
 
@@ -404,6 +400,8 @@ private:
             standby = true;
         }
 
+        uint16_t critical_timeout = 3000; // 5s
+
         // Critical level
         if (!standby && critical)
         {
@@ -411,13 +409,13 @@ private:
             // Keep the transition time.
             if (GetCurrentState()==Feedback::State::kInProgress || GetCurrentState()==Feedback::State::kWarning)
             {
-                Info("Critical current limit exceeded.... waiting for "+to_string(fTimeoutCritical)+" ms.");
+                Info("Critical current limit exceeded.... waiting for "+to_string(critical_timeout)+" ms.");
                 fTimeCritical = Time();
             }
 
-            // Critical is only allowed for fTimeoutCritical milliseconds.
+            // Critical is only allowed for critical_timeout milliseconds.
             // After this time, the operation is changed to reduced voltage.
-            if (Time()<fTimeCritical+boost::posix_time::milliseconds(fTimeoutCritical))
+            if (Time()<fTimeCritical+boost::posix_time::milliseconds(critical_timeout))
                 return Feedback::State::kCritical;
 
             // Just in case (FIXME: Is that really the right location?)
@@ -560,9 +558,6 @@ private:
         return pseudo_number_sipms_per_bias_patch;
     }
 
-
-
-
     int HandleBiasCurrent(const EventImp &evt)
     {
         if (!CheckEventSize(
@@ -606,6 +601,9 @@ private:
         // ---------------------- Calibrated, WaitingForData, InProgress -----------------------
 
         const int Navg = fDimBias.state()!=BIAS::State::kVoltageOn ? 1 : 3;
+        // Nominal overvoltage (w.r.t. the bias setup values)
+        const double voltageoffset = GetCurrentState() < Feedback::State::kWaitingForData ? 0 : fUserOffset;
+
 
         const vector<float> &Imes = AverageCurrents(evt.Ptr<int16_t>(), Navg).first;
         if (Imes.size()==0)
@@ -616,61 +614,45 @@ private:
         // Current through calibration resistors (R9)
         // This is uncalibrated, but since the corresponding calibrated
         // value I8 is subtracted, the difference should yield a correct value
-        //U9/R9;   [A]
         auto I9 = fBiasDac * Feedback::c1;
-        // Current in R4/R5 branch
         auto Iout = (adc - fCalibDeltaI) - I9 * fCalibR8;
         auto R_serial = make_serial_resistor();
-        auto Udrp = vec::clip_low(R_serial * Iout, 0.);
+        auto Udrp = R_serial * Iout;
+        Udrp = set_where(Udrp, Udrp < 0., 0.);
 
         // Nominal operation voltage with correction for temperature dependence
         auto blocked = make_blocked_bias_patch_vector();
-        auto blocking_voltage = vec::mult_scalar(-5, blocked);
+        auto blocking_voltage = blocked * -5;
         auto Uop = fVoltGapd + fVoltOffset + fTempOffset - blocking_voltage;
 
-        // Current overvoltage (at a G-APD with the correct 3900 Ohm resistor)
-        // expressed w.r.t. to the operation voltage
-        auto Uov = vec::clip_low(fBiasVolt - Udrp - Uop, -Feedback::AlsoDefaultOverVoltage);
-        auto is_over_voltage_bigger = Uov + Feedback::AlsoDefaultOverVoltage >= 0.022;
+        // Current overvoltage expressed w.r.t. to the operation voltage
+        auto Uov = fBiasVolt - Udrp - Uop;
+        Uov = set_where(Uov, Uov < -Feedback::AlsoDefaultOverVoltage, -Feedback::AlsoDefaultOverVoltage);
 
         auto pseudo_number_sipms_per_bias_patch = make_pseudo_number_sipms_per_bias_patch();
         auto Iapd = Iout / pseudo_number_sipms_per_bias_patch;
 
         auto A = voltageoffset + Feedback::AlsoDefaultOverVoltage;
-        auto divisor = (Uov + Feedback::AlsoDefaultOverVoltage);
-
-        auto boom = is_over_voltage_bigger * divisor + (!is_over_voltage_bigger) * 1.;
-        auto Uset = Uop + voltageoffset + Udrp * exp(0.6 * (voltageoffset-Uov)) * pow(A/boom, 0.6);
+        auto divisor = Uov + Feedback::AlsoDefaultOverVoltage;
+        auto something = set_where(A / divisor, divisor < 0.022, A);
+        auto Uset = Uop + voltageoffset + Udrp * exp(0.6 * (voltageoffset-Uov)) * pow(something, 0.6);
 
         fCurrentsAvg.assign(BIAS::kNumChannels, 0);
         fCurrentsRms.assign(BIAS::kNumChannels, 0);
         fCursorCur = 0;
 
-        // Nominal overvoltage (w.r.t. the bias setup values)
-        const double voltageoffset = GetCurrentState() < Feedback::State::kWaitingForData ? 0 : fUserOffset;
-
-        double avg;
         int patch_counter = sum(not(blocked));
-
-        vector<double> med;
-        med.resize(BIAS::kNumChannels);
 
         Feedback::DimCurrents_t calibrated_currents;
 
         calibrated_currents.Unom   = voltageoffset;
         calibrated_currents.dUtemp = fTempOffsetAvg;
 
-        vector<float> command_voltages(BIAS::kNumChannels);
-        command_voltages.assign(Uset.begin(), Uset.end());
-
         auto iapd = Iapd * 1e6; // A --> uA
         calibrated_currents.I.assign(iapd.begin(), iapd.end());
         calibrated_currents.Uov.assign(Uov.begin(), Uov.end());
 
-
-        auto iapd_masked = mask(iapd, blocked, 0.);
-        auto Uov_masked = mask(Uov, blocked, std::nan());
-
+        auto iapd_masked = set_where(iapd, blocked, 0.);
         stats_t I_stats = calc_stats(iapd_masked, patch_counter);
         calibrated_currents.Imed = I_stats.median;
         calibrated_currents.Idev = I_stats.cdf_std;
@@ -680,65 +662,79 @@ private:
         // time difference to calibration
         calibrated_currents.Tdiff = evt.GetTime().UnixTime() - fTimeCalib.UnixTime();
 
-        // Average overvoltage
-        const double Uov = calc_stats(Uov_masked, patch_counter).nanmean();
-
         // ------------------------------- Update voltages ------------------------------------
 
         int newstate = GetCurrentState();
 
-        // if state in WaitingForData, OnStandby, InProgress, kWarning, kCritical
-        if (GetCurrentState() != Feedback::State::kCalibrated)
-        {
-            if (fDimBias.state() != BIAS::State::kRamping)
-            {
-                newstate = CheckLimits(calibrated_currents.I);
-
-                // standby and change reduction level of voltage
-                if (newstate == Feedback::State::kOnStandby)
-                {
-                    // Calculate average applied overvoltage and estimate an offset
-                    // to reach fAbsoluteMedianCurrentLimit
-                    float fAbsoluteMedianCurrentLimit = 85;
-                    const double deltaU = (
-                        Uov + Feedback::AlsoDefaultOverVoltage
-                        ) * ( 1 - pow(
-                            fAbsoluteMedianCurrentLimit / calibrated_currents.Imed,
-                            1./1.7
-                            )
-                        );
-
-                    if (fVoltageReduction + deltaU < 0.033)
-                        fVoltageReduction = 0;
-                    else
-                    {
-                        fVoltageReduction += deltaU;
-
-                        for (int i=0; i<Feedback::NumBiasChannels; i++)
-                            command_voltages[i] -= fVoltageReduction;
-                    }
-                }
-
-                // set voltage in 262 -> current in 262/263
-                command_voltages[263] = command_voltages[262] - fVoltGapd[262] + fVoltGapd[263];
-
-                // Do not ramp the channel with a shortcut
-                command_voltages[Feedback::ABrokenBoard] = 0;
-
-                DimClient::sendCommandNB(
-                    "BIAS_CONTROL/SET_ALL_CHANNELS_VOLTAGE",
-                    command_voltages.data(),
-                    BIAS::kNumChannels * sizeof(float)
-                );
-
-            }
+        if (is_operational()){
+            newstate = CheckLimits(calibrated_currents.I);
+            if (newstate == Feedback::State::kOnStandby)
+                Uset = Uset - update_fVoltageReduction(calibrated_currents);
+            set_command_voltages(Uset);
         }
 
         fDimCurrents.setQuality(GetCurrentState());
         fDimCurrents.setData(&calibrated_currents, sizeof(Feedback::DimCurrents_t));
         fDimCurrents.Update(evt.GetTime());
 
-        return GetCurrentState()==Feedback::State::kCalibrated ? Feedback::State::kCalibrated : newstate;
+        return newstate;
+    }
+
+    bool is_operational(){
+        // if state in WaitingForData, OnStandby, InProgress, kWarning, kCritical
+        if (GetCurrentState() != Feedback::State::kCalibrated)
+        {
+            if (fDimBias.state() != BIAS::State::kRamping)
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    double update_fVoltageReduction(const Feedback::DimCurrents_t& calibrated_currents){
+        // Calculate average applied overvoltage and estimate an offset
+        // to reach fAbsoluteMedianCurrentLimit
+        float fAbsoluteMedianCurrentLimit = 85;  // unit??
+
+        auto Uov_masked = set_where(calibrated_currents.Uov, blocked, std::nan());
+        double Uov_mean = calc_stats(Uov_masked).nanmean()
+
+        const double deltaU = (
+            Uov + Feedback::AlsoDefaultOverVoltage
+            ) * ( 1 - pow(
+                fAbsoluteMedianCurrentLimit / calibrated_currents.Imed,
+                1./1.7
+            )
+        );
+
+        fVoltageReduction += deltaU;
+
+        if (fVoltageReduction < 0.033)
+            fVoltageReduction = 0;
+
+        return double(fVoltageReduction);
+    }
+
+    void set_command_voltages(const std::vector<double>& Uset){
+        vector<float> command_voltages(BIAS::kNumChannels);
+        command_voltages.assign(Uset.begin(), Uset.end());
+
+        // -------------- treat exceptional cases ----------------------------
+
+        // set voltage in 262 -> current in 262/263
+        command_voltages[263] = command_voltages[262] - fVoltGapd[262] + fVoltGapd[263];
+
+        for (auto broken_channel_id : Feedback::broken_channels){
+            // Do not ramp the channel with a shortcut
+            command_voltages[broken_channel_id] = 0.;
+        }
+
+        DimClient::sendCommandNB(
+            "BIAS_CONTROL/SET_ALL_CHANNELS_VOLTAGE",
+            command_voltages.data(),
+            BIAS::kNumChannels * sizeof(float)
+        );
     }
 
     // ======================================================================
