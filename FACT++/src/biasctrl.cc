@@ -60,7 +60,14 @@ class ConnectionBias : public ConnectionUSB
     bool fIsRamping;
     int  fWaitingForAnswer;
 
-    vector<uint64_t> fCounter;
+    uint64_t fSynchronizationCounter;
+    uint64_t fResetCounter;
+    uint64_t fRequestUpdateCounter;
+    uint64_t fRampStepCounter;
+    uint64_t fReadCounter;
+    uint64_t fResetChannelsCounter;
+    uint64_t fGlobalSetCounter;
+    uint64_t fChannelSetCounter;
 
     Time fLastConnect;
 
@@ -350,7 +357,7 @@ private:
 
             // Cancel sending of the next 0
             fSyncTimer.cancel();
-            fCounter[0]++;
+            fSynchronizationCounter++;
 
             // Start continous reading of all channels
             ScheduleUpdate(100);
@@ -377,7 +384,7 @@ private:
         {
             Message("Reset command successfully answered...");
 
-            fCounter[1]++;
+            fResetCounter++;
 
             // Re-start cyclic reading of values after a short time
             // to allow the currents to become stable. This ensures that
@@ -397,13 +404,13 @@ private:
         if (command==kResetChannels)
         {
             ExpertReset(false);
-            fCounter[5]++;
+            fResetChannelsCounter++;
         }
 
         if (command==kUpdate)
         {
             ScheduleUpdate(fUpdateTime);
-            fCounter[2]++;
+            fRequestUpdateCounter++;
         }
 
         // If we are ramping, schedule a new ramp step
@@ -427,17 +434,17 @@ private:
             else
                 ScheduleRampStep();
 
-            fCounter[3]++;
+            fRampStepCounter++;
         }
 
         if (command==kCmdRead)
-            fCounter[4]++;
+            fReadCounter++;
 
         if ((command&0xff)==kExpertChannelSet)
-            fCounter[6]++;
+            fChannelSetCounter++;
 
         if (command==kCmdGlobalSet)
-            fCounter[7]++;
+            fGlobalSetCounter++;
     }
 
     void HandleReceivedData(const bs::error_code& err, size_t bytes_received, int command, int send_counter)
@@ -836,7 +843,6 @@ public:
         fReconnectDelay(1),
         fIsRamping(false),
         fWaitingForAnswer(-1),
-        fCounter(8),
         fEmergencyLimit(0),
         fEmergencyShutdown(false),
         fCurrent(kNumChannels),
@@ -1229,14 +1235,14 @@ public:
         Out() << "fIsInitializing = " << fIsInitializing << '\n';
         Out() << "fIsRamping      = " << fIsRamping << '\n';
         Out() << "Answer counter:" << '\n';
-        Out() << " - Synchronization: " << fCounter[0] << '\n';
-        Out() << " - Reset:           " << fCounter[1] << '\n';
-        Out() << " - Request update:  " << fCounter[2] << '\n';
-        Out() << " - Ramp step:       " << fCounter[3] << '\n';
-        Out() << " - Read:            " << fCounter[4] << '\n';
-        Out() << " - Reset channels:  " << fCounter[5] << '\n';
-        Out() << " - Global set:      " << fCounter[7] << '\n';
-        Out() << " - Channel set:     " << fCounter[6] << '\n' << endl;
+        Out() << " - Synchronization: " << fSynchronizationCounter << '\n';
+        Out() << " - Reset:           " << fResetCounter << '\n';
+        Out() << " - Request update:  " << fRequestUpdateCounter << '\n';
+        Out() << " - Ramp step:       " << fRampStepCounter << '\n';
+        Out() << " - Read:            " << fReadCounter << '\n';
+        Out() << " - Reset channels:  " << fResetChannelsCounter << '\n';
+        Out() << " - Global set:      " << fGlobalSetCounter << '\n';
+        Out() << " - Channel set:     " << fChannelSetCounter << '\n' << endl;
     }
 
     void PrintLineA(int b, int ch)
