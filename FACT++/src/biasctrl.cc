@@ -88,7 +88,6 @@ public:
 
 protected:
     vector<float> fOperationVoltage;      // Operation voltage of GAPDs
-    //vector<float> fChannelOffset;         // User defined channel offset
 
     vector<float> fCalibrationOffset;     // Bias crate channel offset
     vector<float> fCalibrationSlope;      // Bias crate channel slope
@@ -106,15 +105,6 @@ private:
     vector<char> GetCmd(uint16_t board, uint16_t channel, Command_t cmd, uint16_t dac=0)
     {
         vector<char> data(3);
-
-        /*
-        if (board>kNumBoards)
-            return;
-        if (channel>kNumChannelsPerBoard)
-            return;
-        if (dac>0xfff)
-            return;
-        */
 
         data[0] = (cmd<<5) | (board<<1) | (((channel&16)>>4) & 1);
         data[1] = (channel<<4) | (dac>>8);
@@ -152,19 +142,6 @@ private:
         const uint16_t ddd    = ((uint16_t(answer[0])&0xf)<<8) | answer[1];
         const uint16_t error  = (answer[2]>>4)&0xf;
         const uint16_t board  =  answer[2]&0xf;
-
-        // 0x10 00 7f
-        //   status = 0
-        //   wrap   = 1
-        //   ddd    = 0
-        //   error  = not present
-        //   board  = 15
-
-        /*
-        Out() << dec << setw(2) << board << '|' << wrap << " ";
-        if (id%8==7)
-            Out() << endl;
-            */
 
         if (fWrapCounter>=0)
         {
@@ -324,14 +301,6 @@ private:
 
     void HandleReceivedData(const vector<uint8_t> &buf, size_t bytes_received, int command, int send_counter)
     {
-#ifdef DEBUG
-    ofstream fout("received.txt", ios::app);
-    fout << Time() << ": ";
-    for (unsigned int i=0; i<bytes_received; i++)
-        fout << hex << setfill('0') << setw(2) << (uint16_t)buf[i];
-    fout << endl;
-#endif
-
         // Now print the received message if requested by the user
         if (fIsVerbose/* && command!=kUpdate*/)
         {
@@ -728,7 +697,6 @@ private:
 
         for (int ch=0; ch<kNumChannels; ch++)
         {
-            // FIXME: dac[ch] += calib_offset
             const vector<char> cmd = GetCmd(kCmdChannelSet, ch, dac[ch]);
             data.insert(data.end(), cmd.begin(), cmd.end());
 
@@ -873,7 +841,6 @@ public:
         fEmergencyShutdown(false),
         fCurrent(kNumChannels),
         fOperationVoltage(kNumChannels, 0),
-        //fChannelOffset(kNumChannels),
         fCalibrationOffset(kNumChannels),
         fCalibrationSlope(kNumChannels, 90000),
         fVoltageMaxAbs(75),
@@ -922,7 +889,7 @@ public:
         if (fOperationVoltage[ch]<=0)
             return true;
 
-        if (volt>fOperationVoltage[ch]+fVoltageMaxRel) // FIXME: fVoltageMaxRel!!!
+        if (volt>fOperationVoltage[ch]+fVoltageMaxRel)
         {
             ostringstream msg;
             msg << "CheckChannelVoltage - Set voltage " << volt << "V of channel " << ch << " exceeds limit of " << fVoltageMaxRel << "V above operation voltage " << fOperationVoltage[ch] << "V + limit " << fVoltageMaxRel << "V.";
@@ -1024,75 +991,6 @@ public:
     {
         return RampAllChannelsVoltage(vector<float>(kNumChannels, volt));
     }
-
-    // --------------------------------------------------------------------
-
-    /*
-    bool RampSingleChannelOffset(uint16_t ch, float offset, bool relative)
-    {
-        if (!CheckChannel(ch))
-            return false;
-
-//        if (relative)
-//            offset += fDacActual[ch]*90./4096 - fBreakdownVoltage[ch];
-
-        const float volt = fBreakdownVoltage[ch]>0 ? fBreakdownVoltage[ch] + offset : 0;
-
-        if (!RampSingleChannelVoltage(ch, volt))
-            return false;
-
-        fChannelOffset[ch] = offset;
-
-        return true;
-    }
-
-    bool RampAllChannelsOffset(vector<float> offset, bool relative)
-    {
-        vector<float> volt(kNumChannels);
-
-//        if (relative)
-//            for (size_t ch=0; ch<kNumChannels; ch++)
-//                offset[ch] += fDacActual[ch]*90./4096 - fBreakdownVoltage[ch];
-
-        for (size_t ch=0; ch<kNumChannels; ch++)
-            volt[ch] = fBreakdownVoltage[ch]>0 ? fBreakdownVoltage[ch] + offset[ch] : 0;
-
-        if (!RampAllChannelsVoltage(volt))
-            return false;
-
-        fChannelOffset = offset;
-
-        return true;
-    }
-
-    bool RampAllOffsets(float offset, bool relative)
-    {
-        return RampAllChannelsOffset(vector<float>(kNumChannels, offset), relative);
-    }
-    */
-
-    /*
-    bool RampSingleChannelOvervoltage(float offset)
-    {
-        return RampAllChannelsOvervoltage(vector<float>(kNumChannels, offset));
-    }
-    bool RampAllOvervoltages(const vector<float> &overvoltage)
-    {
-        vector<float> volt(kNumChannels);
-
-        for (size_t ch=0; ch<kNumChannels; ch++)
-            volt[ch] = fBreakdownVoltage[ch] + fOvervoltage[ch] + fChannelOffset[ch];
-
-#warning What about empty channels?
-
-        if (!RampAllChannelsVoltage(volt))
-            return false;
-
-        for (size_t ch=0; ch<kNumChannels; ch++)
-            fOvervoltage[ch] = overvoltage[ch];
-
-        return true;
-    }*/
 
     // --------------------------------------------------------------------
 
@@ -1382,9 +1280,6 @@ public:
             const int id = c+kNumChannelsPerBoard*b;
             Out() << " ";
             Out() << (fDacActual[id]==fDacTarget[id]?kGreen:kRed);
-            //Out() << setw(5) << fDacActual[id]*90/4096. << '/';
-            //Out() << setw(5) << fDacTarget[id]*90/4096.;
-
             Out() << setw(5) << ConvertDacToVolt(id, fDacActual[id]) << '/';
             Out() << setw(5) << ConvertDacToVolt(id, fDacTarget[id]);
         }
@@ -1629,8 +1524,6 @@ public:
                  "|Rcal[Ohm]:Bias crate channel calibration slope")
     {
     }
-
-    // A B [C] [D] E [F] G H [I] J K [L] M N O P Q R [S] T U V W [X] Y Z
 };
 
 // ------------------------------------------------------------------------
@@ -1740,44 +1633,6 @@ private:
         return T::GetCurrentState();
     }
 
-    // --------------------------------------------------------------------
-
-/*    // INCREASE_GLOBAL_VOLTAGE
-    int IncGlobalVolt(const EventImp &evt)
-    {
-        if (!CheckEventSize(evt.GetSize(), "IncGlobalVolt", 4))
-            return false;
-
-        fBias.RampAllOffsets(evt.GetFloat(), true);
-
-        return T::GetCurrentState();
-    }
-
-    // INCREASE_CHANNEL_VOLTAGE
-    int IncChannelVolt(const EventImp &evt)
-    {
-        if (!CheckEventSize(evt.GetSize(), "IncChannelVolt", 6))
-            return false;
-
-        fBias.RampSingleChannelOffset(evt.Get<uint16_t>(), evt.Get<float>(2), true);
-
-        return T::GetCurrentState();
-    }
-
-    // INCREASE_ALL_CHANNELS_VOLTAGES
-    int IncAllChannelsVolt(const EventImp &evt)
-    {
-        if (!CheckEventSize(evt.GetSize(), "IncAllChannelsVolt", 4*kNumChannels))
-            return false;
-
-        const float *ptr = evt.Ptr<float>();
-        fBias.RampAllChannelsOffset(vector<float>(ptr, ptr+416), true);
-
-        return T::GetCurrentState();
-    }
-*/
-    // --------------------------------------------------------------------
-
     int ExpertSetGlobalVolt(const EventImp &evt)
     {
         if (!CheckEventSize(evt.GetSize(), "ExpertSetGlobalVolt", 4))
@@ -1873,13 +1728,6 @@ private:
     {
         // Close all connections
         fBias.PostClose(-1);
-
-        /*
-         // Now wait until all connection have been closed and
-         // all pending handlers have been processed
-         poll();
-         */
-
         return T::GetCurrentState();
     }
 
@@ -1952,7 +1800,7 @@ private:
     {
         const int state = fBias.GetStatus();
 
-        if (fBias.IsEmergencyShutdown()/* && state>State::kInitializing && state<State::kExpertMode*/)
+        if (fBias.IsEmergencyShutdown())
         {
             // This needs to be repeated for the case that in between a different command was processed
             if (!fBias.IsVoltageOff())
@@ -2097,24 +1945,6 @@ public:
             ("Set all channels to the given new reference voltage. Starts ramping if necessary."
              "|voltage[V]:New reference voltage for all channels");
 
-/*
-        T::AddEvent("INCREASE_CHANNEL_VOLTAGE", "S:1;F:1", State::kConnected, State::kVoltageOff, State::kVoltageOn, State::kNotReferenced, State::kOverCurrent)
-            (bind(&StateMachineBias::IncChannelVolt, this, placeholders::_1))
-            ("Increases the voltage of all channels by the given offset. Starts ramping if necessary. (This command is not realized with the GLOBAL SET command.)"
-             "|channel[short]:Channel for which to adapt the voltage [0-415]"
-             "|offset[V]:Offset to be added to all channels (will be converted to DAC counts)");
-        T::AddEvent("INCREASE_GLOBAL_VOLTAGE", "F:1", State::kConnected, State::kVoltageOff, State::kVoltageOn, State::kNotReferenced, State::kOverCurrent)
-            (bind(&StateMachineBias::IncGlobalVolt, this, placeholders::_1))
-            ("Increases the voltage of all channels by the given offset. Starts ramping if necessary. (This command is not realized with the GLOBAL SET command.)"
-             "|offset[V]:Offset to be added to all channels (will be converted to DAC counts)");
-        T::AddEvent("INCREASE_ALL_CHANNELS_VOLTAGE", "F:416", State::kConnected, State::kVoltageOff, State::kVoltageOn, State::kNotReferenced, State::kOverCurrent)
-            (bind(&StateMachineBias::IncAllChannelsVolt, this, placeholders::_1))
-            ("Add the given voltages to the current reference voltages. Starts ramping if necessary."
-             "offset[V]:Offsets to be added to the reference voltage of all channels in volts");
-*/
-
-
-
         T::AddEvent("SET_ZERO_VOLTAGE")(State::kConnected)(State::kVoltageOff)(State::kVoltageOn)(State::kNotReferenced)(State::kOverCurrent)(State::kRamping)
             (Wrapper(bind(&ConnectionBias::RampAllDacs, &fBias, 0)))
             ("Set all channels to a zero reference voltage. Starts ramping if necessary.");
@@ -2126,10 +1956,6 @@ public:
             (bind(&StateMachineBias::Unlock, this))
             ("Unlock if in locked state.");
 
-
-
-
-
         T::AddEvent("STOP", State::kConnected, State::kRamping)
             (Wrapper(bind(&ConnectionBias::RampStop, &fBias)))
             ("Stop an on-going ramping");
@@ -2137,8 +1963,6 @@ public:
         T::AddEvent("START", State::kConnected, State::kNotReferenced)
             (Wrapper(bind(&ConnectionBias::RampStart, &fBias)))
             ("Start a ramping if no ramping is in progress and if reference values differ from current voltages");
-
-
 
         T::AddEvent("PRINT_INFO")
             (Wrapper(bind(&ConnectionBias::PrintInfo, &fBias)))
@@ -2187,9 +2011,6 @@ public:
 
     int EvalOptions(Configuration &conf)
     {
-        // FIXME: Read calib_offset
-        // FIXME: Check calib offset being smaller than +/-0.25V
-
         fBias.SetVerbose(!conf.Get<bool>("quiet"));
         fBias.SetDummyMode(conf.Get<bool>("dummy-mode"));
 
@@ -2262,9 +2083,6 @@ public:
         {
             if (conf.Has("bias-map-file"))
                 map.Read(conf.Get<string>("bias-map-file"));
-
-            //if (conf.Has("bias-database"))
-            //    map.Retrieve(conf.Get<string>("bias-database"));
         }
         catch (const runtime_error &e)
         {
@@ -2319,15 +2137,6 @@ void SetupConfiguration(Configuration &conf)
     conf.AddOptions(control);
 }
 
-/*
- Extract usage clause(s) [if any] for SYNOPSIS.
- Translators: "Usage" and "or" here are patterns (regular expressions) which
- are used to match the usage synopsis in program output.  An example from cp
- (GNU coreutils) which contains both strings:
-  Usage: cp [OPTION]... [-T] SOURCE DEST
-    or:  cp [OPTION]... SOURCE... DIRECTORY
-    or:  cp [OPTION]... -t DIRECTORY SOURCE...
- */
 void PrintUsage()
 {
     cout <<
@@ -2349,23 +2158,6 @@ void PrintUsage()
 void PrintHelp()
 {
     Main::PrintHelp<StateMachineBias<StateMachine,ConnectionBias>>();
-
-    /* Additional help text which is printed after the configuration
-     options goes here */
-
-    /*
-     cout << "bla bla bla" << endl << endl;
-     cout << endl;
-     cout << "Environment:" << endl;
-     cout << "environment" << endl;
-     cout << endl;
-     cout << "Examples:" << endl;
-     cout << "test exam" << endl;
-     cout << endl;
-     cout << "Files:" << endl;
-     cout << "files" << endl;
-     cout << endl;
-     */
 }
 
 int main(int argc, const char* argv[])
@@ -2378,37 +2170,27 @@ int main(int argc, const char* argv[])
     if (!conf.DoParse(argc, argv, PrintHelp))
         return 127;
 
-    //try
+    if (!conf.Has("console"))
     {
-        // No console access at all
-        if (!conf.Has("console"))
-        {
-            if (conf.Get<bool>("no-dim"))
-                return RunShell<LocalStream, StateMachine, ConnectionBias>(conf);
-            else
-                return RunShell<LocalStream, StateMachineDim, ConnectionDimBias>(conf);
-        }
-        // Cosole access w/ and w/o Dim
         if (conf.Get<bool>("no-dim"))
-        {
-            if (conf.Get<int>("console")==0)
-                return RunShell<LocalShell, StateMachine, ConnectionBias>(conf);
-            else
-                return RunShell<LocalConsole, StateMachine, ConnectionBias>(conf);
-        }
+            return RunShell<LocalStream, StateMachine, ConnectionBias>(conf);
         else
-        {
-            if (conf.Get<int>("console")==0)
-                return RunShell<LocalShell, StateMachineDim, ConnectionDimBias>(conf);
-            else
-                return RunShell<LocalConsole, StateMachineDim, ConnectionDimBias>(conf);
-        }
+            return RunShell<LocalStream, StateMachineDim, ConnectionDimBias>(conf);
     }
-    /*catch (std::exception& e)
+    if (conf.Get<bool>("no-dim"))
     {
-        cerr << "Exception: " << e.what() << endl;
-        return -1;
-    }*/
+        if (conf.Get<int>("console")==0)
+            return RunShell<LocalShell, StateMachine, ConnectionBias>(conf);
+        else
+            return RunShell<LocalConsole, StateMachine, ConnectionBias>(conf);
+    }
+    else
+    {
+        if (conf.Get<int>("console")==0)
+            return RunShell<LocalShell, StateMachineDim, ConnectionDimBias>(conf);
+        else
+            return RunShell<LocalConsole, StateMachineDim, ConnectionDimBias>(conf);
+    }
 
     return 0;
 }
